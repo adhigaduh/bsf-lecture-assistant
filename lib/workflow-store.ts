@@ -99,13 +99,21 @@ export const useWorkflowStore = create<WorkflowStore>()(
       ...initialState,
 
       setUploadedText: (text: string, fileName: string) => {
-        set({ 
-          uploadedText: text, 
+        set({
+          uploadedText: text,
           extractedText: text,
-          fileName 
+          fileName
         });
         if (get().settings.autoSave) {
           get().saveToLocalStorage();
+          // Auto-create and save to document if logged in and file is uploaded
+          if (get().currentUser && text.length > 0) {
+            if (!get().currentDocumentId) {
+              get().createDocument(`Lecture - ${fileName || new Date().toLocaleDateString()}`, '').catch(console.error);
+            } else {
+              get().saveCurrentDocument().catch(console.error);
+            }
+          }
         }
       },
 
@@ -132,6 +140,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
         }));
         if (get().settings.autoSave) {
           get().saveToLocalStorage();
+          // Also save to document if logged in
+          if (get().currentUser && get().currentDocumentId) {
+            get().saveCurrentDocument().catch(console.error);
+          }
         }
       },
 
@@ -156,6 +168,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
         }));
         if (get().settings.autoSave) {
           get().saveToLocalStorage();
+          // Also save to document if logged in
+          if (get().currentUser && get().currentDocumentId) {
+            get().saveCurrentDocument().catch(console.error);
+          }
         }
       },
 
@@ -171,6 +187,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
         }));
         if (get().settings.autoSave) {
           get().saveToLocalStorage();
+          // Also save to document if logged in
+          if (get().currentUser && get().currentDocumentId) {
+            get().saveCurrentDocument().catch(console.error);
+          }
         }
       },
 
@@ -201,6 +221,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
         }));
         if (get().settings.autoSave) {
           get().saveToLocalStorage();
+          // Also save to document if logged in
+          if (get().currentUser && get().currentDocumentId) {
+            get().saveCurrentDocument().catch(console.error);
+          }
         }
       },
 
@@ -384,7 +408,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
         if (!user) return;
 
         try {
-          const response = await fetch('/api/documents/list');
+          const response = await fetch(`/api/documents/list?userId=${encodeURIComponent(user.id)}`);
           if (!response.ok) return;
 
           const result = await response.json();
@@ -415,6 +439,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
           const result = await response.json();
           await get().loadDocuments();
+          set({ currentDocumentId: result.document.id });
           return result.document;
         } catch (error) {
           console.error('Create document error:', error);
