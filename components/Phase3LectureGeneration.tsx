@@ -202,6 +202,32 @@ export function Phase3LectureGeneration() {
         };
       });
       
+      // Extract conclusion parts from content
+      const conclusionContent = lecture.conclusion?.content || '';
+      let storyResolution = conclusionContent;
+      let closingPrayer = '';
+      
+      // Try to find prayer section at the end by looking for common patterns
+      const prayerKeywords = ['Let us pray:', 'Prayer:', 'Amen.'];
+      for (const keyword of prayerKeywords) {
+        const idx = conclusionContent.lastIndexOf(keyword);
+        if (idx > conclusionContent.length - 500 && idx > 100) {
+          storyResolution = conclusionContent.substring(0, idx + keyword.length).trim();
+          closingPrayer = conclusionContent.substring(idx).trim();
+          break;
+        }
+      }
+      
+      // If no prayer found, split roughly at 70% mark
+      if (!closingPrayer && conclusionContent.length > 500) {
+        const splitPoint = Math.floor(conclusionContent.length * 0.7);
+        const splitIdx = conclusionContent.indexOf('. ', splitPoint);
+        if (splitIdx > splitPoint - 200) {
+          storyResolution = conclusionContent.substring(0, splitIdx + 1);
+          closingPrayer = conclusionContent.substring(splitIdx + 1).trim();
+        }
+      }
+      
       const normalizedLecture = {
         id: lecture.id || lecture.metadata?.id || 'lecture-' + Date.now(),
         title: lecture.title || lecture.metadata?.title || lecture.metadata?.aim || lecture.metadata?.lecture_aim || 'Untitled Lecture',
@@ -213,13 +239,19 @@ export function Phase3LectureGeneration() {
         },
         body: normalizedBody,
         conclusion: {
-          storyResolution: lecture.conclusion?.storyResolution || lecture.conclusion?.content || '',
-          callToAction: lecture.conclusion?.callToAction || '',
-          closingPrayer: lecture.conclusion?.closingPrayer || '',
-          finalThought: lecture.conclusion?.finalThought || '',
+          storyResolution: storyResolution,
+          callToAction: lecture.conclusion?.callToAction || storyResolution,
+          closingPrayer: closingPrayer || lecture.conclusion?.closingPrayer || '',
+          finalThought: '',
         },
         metadata: lecture.metadata || {},
       };
+      
+      console.log('Normalized conclusion:', { 
+        storyResolution: storyResolution.substring(0, 50), 
+        callToAction: '...', 
+        closingPrayer: closingPrayer.substring(0, 50) 
+      });
       
       console.log('Normalized lecture:', JSON.stringify(normalizedLecture).substring(0, 500));
       
@@ -424,20 +456,27 @@ export function Phase3LectureGeneration() {
                       <CardTitle className="text-lg">Conclusion</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      {/* Story Resolution */}
                       <div>
-                        <h4 className="font-medium text-gray-700 mb-2">Story Resolution</h4>
-                        <p className="text-gray-600">{phase3.lecture.conclusion?.storyResolution || ''}</p>
+                        <h4 className="font-medium text-blue-700 mb-2">Story Resolution</h4>
+                        <p className="text-gray-600 whitespace-pre-wrap">{phase3.lecture.conclusion?.storyResolution || ''}</p>
                       </div>
                       
-                      <div>
-                        <h4 className="font-medium text-gray-700 mb-2">Call to Action</h4>
-                        <p className="text-gray-600">{phase3.lecture.conclusion?.callToAction || ''}</p>
-                      </div>
+                      {/* Call to Action - if different from story resolution */}
+                      {phase3.lecture.conclusion?.callToAction !== phase3.lecture.conclusion?.storyResolution && (
+                        <div>
+                          <h4 className="font-medium text-green-700 mb-2">Call to Action</h4>
+                          <p className="text-gray-600 whitespace-pre-wrap">{phase3.lecture.conclusion?.callToAction || ''}</p>
+                        </div>
+                      )}
                       
-                      <div className="p-4 bg-gray-100 rounded-lg">
-                        <h4 className="font-medium mb-2">Closing Prayer</h4>
-                        <p className="italic text-gray-700">{phase3.lecture.conclusion?.closingPrayer || ''}</p>
-                      </div>
+                      {/* Closing Prayer */}
+                      {phase3.lecture.conclusion?.closingPrayer && (
+                        <div className="p-4 bg-amber-50 border-l-4 border-amber-400 rounded-r">
+                          <h4 className="font-medium text-amber-800 mb-2">Closing Prayer</h4>
+                          <p className="italic text-amber-900 whitespace-pre-wrap">{phase3.lecture.conclusion?.closingPrayer || ''}</p>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </>
