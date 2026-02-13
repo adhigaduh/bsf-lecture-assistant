@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Music, Clock, ChevronDown, ChevronUp, Save, Check } from 'lucide-react';
 import { Lecture, WorshipSong } from '@/types/workflow';
+import { exportToMarkdown } from '@/lib/export/markdown';
 
 function Timer({ isRunning, completedTime, onComplete }: { isRunning: boolean; completedTime?: number; onComplete?: () => void }) {
   const [seconds, setSeconds] = useState(completedTime ? Math.round(completedTime / 1000) : 0);
@@ -320,50 +321,46 @@ export function Phase3LectureGeneration() {
                     if (Array.isArray(body)) {
                       divisions = body;
                     } else if (body && typeof body === 'object') {
-                      // Handle object with division_1, division_2, etc.
                       divisions = Object.values(body).filter((item: any) =>
                         item && (item.division_number || item.title)
                       );
                     }
                     
-                    return divisions.map((division, index) => {
-                      console.log('Division:', index, JSON.stringify(division).substring(0, 200));
-                      return (
+                    return divisions.map((division, index) => (
                       <Card key={division.id || `div-${index}`}>
                         <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-lg">
-                            Division {index + 1}: {division.title || ''}
-                          </CardTitle>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => setExpandedDivision(
-                              expandedDivision === division.id ? null : division.id
-                            )}
-                          >
-                            {expandedDivision === division.id ? (
-                              <ChevronUp className="h-4 w-4" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                        <CardDescription>{division.scriptureRange || ''}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div>
-                            <h4 className="font-medium text-blue-600 mb-2">Principle</h4>
-                            <p className="text-lg font-medium">{division.principle || ''}</p>
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-lg">
+                              Division {index + 1}: {division.title || ''}
+                            </CardTitle>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => setExpandedDivision(
+                                expandedDivision === division.id ? null : division.id
+                              )}
+                            >
+                              {expandedDivision === division.id ? (
+                                <ChevronUp className="h-4 w-4" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4" />
+                              )}
+                            </Button>
                           </div>
-                          
-                          <div>
-                            <h4 className="font-medium text-gray-700 mb-2">Exposition</h4>
-                            <p className="text-gray-600">{division.exposition || ''}</p>
-                          </div>
-                          
-                          {(expandedDivision === division.id || true) && (
+                          <CardDescription>{division.scriptureRange || ''}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-4">
+                            <div>
+                              <h4 className="font-medium text-blue-600 mb-2">Principle</h4>
+                              <p className="text-lg font-medium">{division.principle || ''}</p>
+                            </div>
+                            
+                            <div>
+                              <h4 className="font-medium text-gray-700 mb-2">Exposition</h4>
+                              <p className="text-gray-600">{division.exposition || ''}</p>
+                            </div>
+                            
                             <div className="mt-4 pt-4 border-t">
                               <h4 className="font-medium text-green-600 mb-3">Application Questions</h4>
                               <div className="grid gap-4 md:grid-cols-3">
@@ -395,12 +392,11 @@ export function Phase3LectureGeneration() {
                                 </Card>
                               </div>
                             </div>
-                          )}
-                        </div>
-                      </CardContent>
+                          </div>
+                        </CardContent>
                       </Card>
-                      );
-                    })}
+                    ));
+                  })()}
 
                   {/* Conclusion */}
                   <Card>
@@ -479,26 +475,26 @@ export function Phase3LectureGeneration() {
                     <CardTitle>Lecture Outline</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-blue-600">Introduction</Badge>
-                        <span className="text-sm">{phase3.lecture.title || ''}</span>
-                      </div>
-                      
-                      {(phase3.lecture.body || []).map ? (
-                        (Array.isArray(phase3.lecture.body) 
-                          ? phase3.lecture.body 
-                          : Object.values(phase3.lecture.body || {}).filter((d: any) => d && d.title)
-                        ).map((division: any, index: number) => (
-                          <div key={division.id || `div-${index}`} className="flex items-center gap-2">
-                            <Badge variant="outline">{index + 1}</Badge>
-                            <span className="text-sm">{division.title || ''}</span>
-                          </div>
-                        ))
-                      ) : null}
-                      
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-green-600">Conclusion</Badge>
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-blue-600">Introduction</Badge>
+                          <span className="text-sm">{phase3.lecture.title || ''}</span>
+                        </div>
+                        
+                        {phase3.lecture.body && (
+                          (Array.isArray(phase3.lecture.body) 
+                            ? phase3.lecture.body 
+                            : Object.values(phase3.lecture.body || {}).filter((d: any) => d && d.title)
+                          ).map((division: any, index: number) => (
+                            <div key={division.id || `div-${index}`} className="flex items-center gap-2">
+                              <Badge variant="outline">{index + 1}</Badge>
+                              <span className="text-sm">{division.title || ''}</span>
+                            </div>
+                          ))
+                        )}
+                        
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-green-600">Conclusion</Badge>
                         <span className="text-sm">Resolution & Prayer</span>
                       </div>
                     </div>

@@ -29,9 +29,10 @@ export function exportToMarkdown(
   markdown += `*(Story continues...)*\n\n`;
 
   // Body - handle both array and object structures
-  const bodyArray = Array.isArray(lecture.body) 
-    ? lecture.body 
-    : (lecture.body?.divisions || Object.values(lecture.body || {}).filter((d: any) => d && d.title));
+  const bodyAny = lecture.body as any;
+  const bodyArray = Array.isArray(bodyAny) 
+    ? bodyAny 
+    : (bodyAny?.divisions || Object.values(bodyAny || {}).filter((d: any) => d && d.title));
   
   bodyArray.forEach((division: any, index: number) => {
     markdown += `## Division ${index + 1}: ${division.title || 'Untitled'}\n\n`;
