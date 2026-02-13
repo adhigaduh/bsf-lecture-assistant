@@ -162,6 +162,19 @@ export function Phase3LectureGeneration() {
         // Handle different API response structures
         const apps = div.application || div.applications || {};
         
+        // Find the right keys for each age group (API uses inconsistent naming)
+        const youngKey = Object.keys(apps).find(k => k.includes('young') || k.includes('20'));
+        const middleKey = Object.keys(apps).find(k => k.includes('middle') || k.includes('40'));
+        const olderKey = Object.keys(apps).find(k => k.includes('older') || k.includes('60'));
+        
+        const getQuestion = (key: string | undefined) => {
+          if (!key || !apps[key]) return '';
+          const val = apps[key];
+          if (Array.isArray(val)) return val[0] || '';
+          if (val.questions && Array.isArray(val.questions)) return val.questions[0] || '';
+          return '';
+        };
+        
         return {
           id: div.id || `div-${idx + 1}`,
           title: div.title || div.division_title || '',
@@ -170,24 +183,18 @@ export function Phase3LectureGeneration() {
           principle: div.principle_statement?.content || div.principle_statement?.text || div.principle || div.principle_statement || '',
           applications: {
             youngProfessionals: {
-              question: Array.isArray(apps.young_adults) 
-                ? apps.young_adults[0] 
-                : apps.young_adults?.questions?.[0] || apps.young_men_20s_30s?.questions?.[0] || '',
-              discussionPoints: apps.young_adults?.discussionPoints || [],
+              question: getQuestion(youngKey),
+              discussionPoints: [],
               reflectionTime: 5,
             },
             fathersMidLife: {
-              question: Array.isArray(apps.middle_aged) 
-                ? apps.middle_aged[0] 
-                : apps.middle_aged?.questions?.[0] || apps.middle_aged_men_40s_50s?.questions?.[0] || '',
-              discussionPoints: apps.middle_aged?.discussionPoints || [],
+              question: getQuestion(middleKey),
+              discussionPoints: [],
               reflectionTime: 5,
             },
             elders: {
-              question: Array.isArray(apps.older_adults) 
-                ? apps.older_adults[0] 
-                : apps.older_adults?.questions?.[0] || apps.older_men_60s_plus?.questions?.[0] || '',
-              discussionPoints: apps.older_adults?.discussionPoints || [],
+              question: getQuestion(olderKey),
+              discussionPoints: [],
               reflectionTime: 5,
             },
           },
@@ -337,7 +344,9 @@ export function Phase3LectureGeneration() {
                       );
                     }
                     
-                    return divisions.map((division, index) => (
+                    return divisions.map((division, index) => {
+                      console.log('Rendering division:', index, 'applications:', division.applications);
+                      return (
                       <Card key={division.id || `div-${index}`}>
                         <CardHeader>
                           <div className="flex items-center justify-between">
@@ -406,7 +415,7 @@ export function Phase3LectureGeneration() {
                           </div>
                         </CardContent>
                       </Card>
-                    ));
+                    );});
                   })()}
 
                   {/* Conclusion */}
