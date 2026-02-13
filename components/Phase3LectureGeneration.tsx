@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Music, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Music, Clock, ChevronDown, ChevronUp, Save, Check } from 'lucide-react';
 import { Lecture, WorshipSong } from '@/types/workflow';
 
 function Timer({ isRunning, completedTime, onComplete }: { isRunning: boolean; completedTime?: number; onComplete?: () => void }) {
@@ -60,6 +60,43 @@ export function Phase3LectureGeneration() {
   const [expandedDivision, setExpandedDivision] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('lecture');
   const [generationTime, setGenerationTime] = useState<number>(0);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedMessage, setSavedMessage] = useState('');
+
+  const acceptAndSaveLecture = async () => {
+    if (!phase3.lecture) return;
+    
+    setIsSaving(true);
+    try {
+      const markdown = exportToMarkdown(
+        phase3.lecture,
+        phase4.visualAssets,
+        phase3.worshipSongs
+      );
+      
+      const response = await fetch('/api/save-lecture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          markdown,
+          fileName: phase3.lecture.title
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save lecture');
+      }
+      
+      const result = await response.json();
+      setSavedMessage(`Saved to: ${result.fileName}`);
+      setTimeout(() => setSavedMessage(''), 5000);
+    } catch (error) {
+      console.error('Error saving lecture:', error);
+      alert('Failed to save lecture');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const generateLecture = async () => {
     if (!phase1.selected || !phase2.selected) return;
@@ -117,19 +154,19 @@ export function Phase3LectureGeneration() {
         principle: div.principle_statement?.content || div.principle || div.principle_statement || '',
         applications: {
           youngProfessionals: {
-            question: div.application?.young_adults_20s_30s?.questions?.[0] || div.applications?.young_men_20s_30s?.questions?.[0] || '',
-            discussionPoints: div.application?.young_adults_20s_30s?.discussionPoints || [],
-            reflectionTime: div.application?.young_adults_20s_30s?.reflectionTime || 5,
+            question: div.application?.young_adults?.questions?.[0] || div.application?.young_adults_20s_30s?.questions?.[0] || div.applications?.young_men_20s_30s?.questions?.[0] || '',
+            discussionPoints: div.application?.young_adults?.discussionPoints || div.application?.young_adults_20s_30s?.discussionPoints || [],
+            reflectionTime: div.application?.young_adults?.reflectionTime || 5,
           },
           fathersMidLife: {
-            question: div.application?.middle_aged_40s_50s?.questions?.[0] || div.applications?.middle_aged_men_40s_50s?.questions?.[0] || '',
-            discussionPoints: div.application?.middle_aged_40s_50s?.discussionPoints || [],
-            reflectionTime: div.application?.middle_aged_40s_50s?.reflectionTime || 5,
+            question: div.application?.middle_aged?.questions?.[0] || div.application?.middle_aged_40s_50s?.questions?.[0] || div.applications?.middle_aged_men_40s_50s?.questions?.[0] || '',
+            discussionPoints: div.application?.middle_aged?.discussionPoints || div.application?.middle_aged_40s_50s?.discussionPoints || [],
+            reflectionTime: div.application?.middle_aged?.reflectionTime || 5,
           },
           elders: {
-            question: div.application?.older_men_60s_plus?.questions?.[0] || div.applications?.older_men_60s_plus?.questions?.[0] || '',
-            discussionPoints: div.application?.older_men_60s_plus?.discussionPoints || [],
-            reflectionTime: div.application?.older_men_60s_plus?.reflectionTime || 5,
+            question: div.application?.seniors?.questions?.[0] || div.application?.older_men_60s_plus?.questions?.[0] || div.applications?.older_men_60s_plus?.questions?.[0] || '',
+            discussionPoints: div.application?.seniors?.discussionPoints || div.application?.older_men_60s_plus?.discussionPoints || [],
+            reflectionTime: div.application?.seniors?.reflectionTime || 5,
           },
         },
         transitions: div.transitions || '',
@@ -488,6 +525,34 @@ export function Phase3LectureGeneration() {
               Continue to Visual Assets
             </Button>
           </div>
+          
+          {/* Accept & Save Button */}
+          {phase3.lecture && !phase3.isGenerating && (
+            <div className="mt-4 flex justify-center">
+              <Button 
+                onClick={acceptAndSaveLecture}
+                disabled={isSaving}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : savedMessage ? (
+                  <>
+                    <Check className="h-4 w-4 mr-2" />
+                    {savedMessage}
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Accept & Save Lecture
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

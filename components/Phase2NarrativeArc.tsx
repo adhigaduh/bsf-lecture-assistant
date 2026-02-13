@@ -95,6 +95,7 @@ export function Phase2NarrativeArc() {
       
       setPhase2Options(result.data);
       setGenerationTime(Date.now() - startTime);
+      setPhase2Generating(false);
     } catch (error) {
       console.error('Phase 2 generation error:', error);
       alert(`Failed to generate story options: ${error instanceof Error ? error.message : 'Unknown error'}`);

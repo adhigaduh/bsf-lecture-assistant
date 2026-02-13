@@ -97,6 +97,7 @@ export function Phase1StrategicFoundation() {
       
       setPhase1Options(result.data);
       setGenerationTime(Date.now() - startTime);
+      setPhase1Generating(false);
     } catch (error) {
       console.error('Phase 1 generation error:', error);
       alert(`Failed to generate options: ${error instanceof Error ? error.message : 'Unknown error'}`);
