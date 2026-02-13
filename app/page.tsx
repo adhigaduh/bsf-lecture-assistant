@@ -179,7 +179,7 @@ export default function Home() {
           
           <Button
             onClick={nextPhase}
-            disabled={!canProceedToPhase((currentPhase + 1) as WorkflowPhase)}
+            disabled={!isHydrated || !canProceedToPhase((currentPhase + 1) as WorkflowPhase)}
           >
             Next
             <ChevronRight className="h-4 w-4 ml-2" />
