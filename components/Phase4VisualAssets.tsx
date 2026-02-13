@@ -5,7 +5,7 @@ import { useWorkflowStore } from '@/lib/workflow-store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Image, Copy, Check, Download, Clock } from 'lucide-react';
+import { Loader2, Image as ImageIcon, Copy, Check, Download, Clock } from 'lucide-react';
 import { VisualAsset } from '@/types/workflow';
 
 function Timer({ isRunning, completedTime, onComplete }: { isRunning: boolean; completedTime?: number; onComplete?: () => void }) {
@@ -56,6 +56,59 @@ export function Phase4VisualAssets() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copyAll, setCopyAll] = useState(false);
   const [generationTime, setGenerationTime] = useState<number>(0);
+  const [generatingImage, setGeneratingImage] = useState<string | null>(null);
+  const [generatedImages, setGeneratedImages] = useState<Record<string, string>>({});
+  const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
+
+  const generateImage = async (asset: VisualAsset) => {
+    setGeneratingImage(asset.id);
+    try {
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: asset.visualPrompt }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate image');
+      }
+
+      const result = await response.json();
+      
+      if (result.imageData) {
+        setGeneratedImages(prev => ({
+          ...prev,
+          [asset.id]: result.imageData
+        }));
+      } else {
+        alert('Image generation may not be available. Check API key.');
+      }
+    } catch (error) {
+      console.error('Image generation error:', error);
+      alert('Failed to generate image');
+    } finally {
+      setGeneratingImage(null);
+    }
+  };
+
+  const toggleSelectAsset = (assetId: string) => {
+    setSelectedAssets(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(assetId)) {
+        newSet.delete(assetId);
+      } else {
+        newSet.add(assetId);
+      }
+      return newSet;
+    });
+  };
+
+  const generateSelectedImages = async () => {
+    const selectedList = phase4.visualAssets.filter(a => selectedAssets.has(a.id));
+    for (const asset of selectedList) {
+      await generateImage(asset);
+    }
+  };
 
   const generateVisualAssets = async () => {
     if (!phase1.selected) return;
@@ -155,7 +208,7 @@ export function Phase4VisualAssets() {
         <CardContent>
           {!phase3.lecture ? (
             <div className="text-center py-8 text-gray-500">
-              <Image className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p>Please complete Phase 3 first</p>
             </div>
           ) : phase4.visualAssets.length === 0 ? (
@@ -173,7 +226,7 @@ export function Phase4VisualAssets() {
                   </div>
                 ) : (
                   <>
-                    <Image className="h-4 w-4 mr-2" />
+                    <ImageIcon className="h-4 w-4 mr-2" />
                     Generate Visual Assets
                   </>
                 )}
@@ -213,13 +266,54 @@ export function Phase4VisualAssets() {
               </div>
               
               <div className="space-y-4">
+                {/* Selection controls */}
+                <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-sm font-medium">
+                      <input
+                        type="checkbox"
+                        checked={selectedAssets.size === phase4.visualAssets.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedAssets(new Set(phase4.visualAssets.map(a => a.id)));
+                          } else {
+                            setSelectedAssets(new Set());
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      Select All ({selectedAssets.size} selected)
+                    </label>
+                  </div>
+                  <Button 
+                    onClick={generateSelectedImages}
+                    disabled={selectedAssets.size === 0 || generatingImage !== null}
+                    size="sm"
+                  >
+                    {generatingImage ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <ImageIcon className="h-4 w-4 mr-2" />
+                        Generate Selected Images
+                      </>
+                    )}
+                  </Button>
+                </div>
+
                 {phase4.visualAssets.map((asset, index) => (
-                  <Card key={asset.id}>
+                  <Card key={asset.id} className={selectedAssets.has(asset.id) ? 'ring-2 ring-blue-500' : ''}>
                     <CardContent className="p-4">
                       <div className="flex items-start gap-4">
-                        <Badge variant="outline" className="mt-1">
-                          {index + 1}
-                        </Badge>
+                        <input
+                          type="checkbox"
+                          checked={selectedAssets.has(asset.id)}
+                          onChange={() => toggleSelectAsset(asset.id)}
+                          className="mt-2 rounded"
+                        />
                         
                         <div className="flex-1 space-y-3">
                           <div className="flex items-center justify-between">
@@ -257,6 +351,47 @@ export function Phase4VisualAssets() {
                               <span>Colors: {asset.style.colors?.join(', ')}</span>
                               <span>•</span>
                               <span>{asset.style.composition}</span>
+                            </div>
+                          )}
+                          
+                          {/* Generate Image Button */}
+                          <div className="pt-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => generateImage(asset)}
+                              disabled={generatingImage === asset.id}
+                            >
+                              {generatingImage === asset.id ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Generating...
+                                </>
+                              ) : generatedImages[asset.id] ? (
+                                <>
+                                  <Check className="h-4 w-4 mr-2 text-green-600" />
+                                  Regenerate
+                                </>
+                              ) : (
+                                <>
+                                  <ImageIcon className="h-4 w-4 mr-2" />
+                                  Generate Image
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                          
+                          {/* Generated Image Display */}
+                          {generatedImages[asset.id] && (
+                            <div className="mt-4 border-t pt-4">
+                              <p className="text-sm font-medium text-gray-800 mb-2">Generated Image:</p>
+                              <div className="relative">
+                                <img
+                                  src={generatedImages[asset.id]}
+                                  alt={`Generated for ${asset.slideSection}`}
+                                  className="w-full rounded-lg border"
+                                />
+                              </div>
                             </div>
                           )}
                         </div>
