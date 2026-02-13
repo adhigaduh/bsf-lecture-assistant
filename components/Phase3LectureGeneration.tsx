@@ -469,9 +469,19 @@ export function Phase3LectureGeneration() {
               onClick={() => {
                 useWorkflowStore.getState().clearLecture();
                 useWorkflowStore.getState().setWorshipSongs([]);
+                // Trigger regeneration
+                generateLecture();
               }}
+              disabled={phase3.isGenerating}
             >
-              Clear & Regenerate
+              {phase3.isGenerating ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                'Clear & Regenerate'
+              )}
             </Button>
             
             <Button onClick={nextPhase} size="lg">

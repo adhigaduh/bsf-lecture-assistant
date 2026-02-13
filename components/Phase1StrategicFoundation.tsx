@@ -165,8 +165,15 @@ export function Phase1StrategicFoundation() {
                     </Badge>
                   )}
                 </div>
-                <Button variant="outline" onClick={generateOptions}>
-                  Regenerate
+                <Button variant="outline" onClick={generateOptions} disabled={phase1.isGenerating}>
+                  {phase1.isGenerating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    'Regenerate'
+                  )}
                 </Button>
               </div>
               

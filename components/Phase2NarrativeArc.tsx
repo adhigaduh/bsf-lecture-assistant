@@ -164,8 +164,15 @@ export function Phase2NarrativeArc() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">Story Options</h3>
-                <Button variant="outline" onClick={generateOptions}>
-                  Regenerate
+                <Button variant="outline" onClick={generateOptions} disabled={phase2.isGenerating}>
+                  {phase2.isGenerating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    'Regenerate'
+                  )}
                 </Button>
               </div>
               
