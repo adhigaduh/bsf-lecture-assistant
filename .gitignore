@@ -53,3 +53,9 @@ test-results/
 
 # documents (multi-user stored data)
 /documents/
+
+# Test and server logs
+server.log
+playwright-report/
+.playwright-artifacts-*/
+test-screenshots/
