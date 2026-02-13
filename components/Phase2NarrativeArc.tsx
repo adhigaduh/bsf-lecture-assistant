@@ -184,11 +184,11 @@ export function Phase2NarrativeArc() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <Badge variant="outline">Option {index + 1}</Badge>
-                          <Badge className={getToneColor(option.tone)}>
-                            {option.tone.charAt(0).toUpperCase() + option.tone.slice(1)}
+                          <Badge className={getToneColor(option.tone || 'personal')}>
+                            {(option.tone || 'personal').charAt(0).toUpperCase() + (option.tone || 'personal').slice(1)}
                           </Badge>
                           <Badge className="bg-blue-100 text-blue-800">
-                            {option.resonanceScore}% Resonance
+                            {option.resonanceScore || 0}% Resonance
                           </Badge>
                           {phase2.selected?.id === option.id && (
                             <Badge className="bg-blue-600">

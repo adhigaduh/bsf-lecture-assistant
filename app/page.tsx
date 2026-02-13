@@ -184,6 +184,10 @@ export default function Home() {
             Next
             <ChevronRight className="h-4 w-4 ml-2" />
           </Button>
+          
+          <div className="text-xs text-gray-400">
+            canProceed({currentPhase + 1}): {canProceedToPhase((currentPhase + 1) as WorkflowPhase) ? 'true' : 'false'}
+          </div>
         </div>
       </footer>
 

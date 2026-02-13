@@ -28,17 +28,39 @@ export function exportToMarkdown(
   markdown += `${lecture.introduction.storyOpening}\n\n`;
   markdown += `*(Story continues...)*\n\n`;
 
-  // Body
-  markdown += `---\n\n`;
-  lecture.body.forEach((division, index) => {
-    markdown += `## Division ${index + 1}: ${division.title}\n\n`;
-    markdown += `**Scripture:** ${division.scriptureRange}\n\n`;
-    markdown += `### Exposition\n${division.exposition}\n\n`;
-    markdown += `### Principle\n${division.principle}\n\n`;
+  // Body - handle both array and object structures
+  const bodyArray = Array.isArray(lecture.body) 
+    ? lecture.body 
+    : (lecture.body?.divisions || Object.values(lecture.body || {}).filter((d: any) => d && d.title));
+  
+  bodyArray.forEach((division: any, index: number) => {
+    markdown += `## Division ${index + 1}: ${division.title || 'Untitled'}\n\n`;
+    markdown += `**Scripture:** ${division.scriptureRange || division.scripture_reference || 'N/A'}\n\n`;
+    markdown += `### Exposition\n${division.exposition || ''}\n\n`;
+    markdown += `### Principle\n${division.principle || ''}\n\n`;
     markdown += `### Applications\n\n`;
-    markdown += `**Young Professionals:** ${division.applications.youngProfessionals.question}\n\n`;
-    markdown += `**Fathers/Mid-life:** ${division.applications.fathersMidLife.question}\n\n`;
-    markdown += `**Elders:** ${division.applications.elders.question}\n\n`;
+    
+    // Handle different application structures
+    const apps = division.applications || {};
+    const youngPro = apps.youngProfessionals || apps.young_men_20s_30s || apps.young_adults_20s_30s || {};
+    const midLife = apps.fathersMidLife || apps.middle_aged_men_40s_50s || apps.middle_aged_40s_50s || {};
+    const elders = apps.elders || apps.older_men_60s_plus || {};
+    
+    markdown += `**Young Professionals (20s-30s):** ${youngPro.question || 'N/A'}\n\n`;
+    if (youngPro.discussionPoints?.length) {
+      markdown += `   - ${youngPro.discussionPoints.join('\n   - ')}\n\n`;
+    }
+    
+    markdown += `**Fathers/Mid-life (40s-50s):** ${midLife.question || 'N/A'}\n\n`;
+    if (midLife.discussionPoints?.length) {
+      markdown += `   - ${midLife.discussionPoints.join('\n   - ')}\n\n`;
+    }
+    
+    markdown += `**Elders (60s+):** ${elders.question || 'N/A'}\n\n`;
+    if (elders.discussionPoints?.length) {
+      markdown += `   - ${elders.discussionPoints.join('\n   - ')}\n\n`;
+    }
+    
     markdown += `---\n\n`;
   });
 

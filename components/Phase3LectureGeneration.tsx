@@ -97,6 +97,44 @@ export function Phase3LectureGeneration() {
       
       // Normalize lecture data to match expected format
       const lecture = result.data.lecture;
+      
+      // Handle body divisions - API returns body.divisions or body as array
+      let bodyArray = [];
+      if (Array.isArray(lecture.body)) {
+        bodyArray = lecture.body;
+      } else if (lecture.body?.divisions && Array.isArray(lecture.body.divisions)) {
+        bodyArray = lecture.body.divisions;
+      } else if (lecture.body && typeof lecture.body === 'object') {
+        bodyArray = Object.values(lecture.body).filter((d: any) => d && (d.division_number || d.title || d.id));
+      }
+      
+      // Normalize each division to have the expected structure
+      const normalizedBody = bodyArray.map((div: any, idx: number) => ({
+        id: div.id || `div-${idx + 1}`,
+        title: div.title || div.division_title || '',
+        scriptureRange: div.scriptureRange || div.scripture_reference || div.scripture || '',
+        exposition: div.exposition?.content || div.exposition || '',
+        principle: div.principle_statement?.content || div.principle || div.principle_statement || '',
+        applications: {
+          youngProfessionals: {
+            question: div.application?.young_adults_20s_30s?.questions?.[0] || div.applications?.young_men_20s_30s?.questions?.[0] || '',
+            discussionPoints: div.application?.young_adults_20s_30s?.discussionPoints || [],
+            reflectionTime: div.application?.young_adults_20s_30s?.reflectionTime || 5,
+          },
+          fathersMidLife: {
+            question: div.application?.middle_aged_40s_50s?.questions?.[0] || div.applications?.middle_aged_men_40s_50s?.questions?.[0] || '',
+            discussionPoints: div.application?.middle_aged_40s_50s?.discussionPoints || [],
+            reflectionTime: div.application?.middle_aged_40s_50s?.reflectionTime || 5,
+          },
+          elders: {
+            question: div.application?.older_men_60s_plus?.questions?.[0] || div.applications?.older_men_60s_plus?.questions?.[0] || '',
+            discussionPoints: div.application?.older_men_60s_plus?.discussionPoints || [],
+            reflectionTime: div.application?.older_men_60s_plus?.reflectionTime || 5,
+          },
+        },
+        transitions: div.transitions || '',
+      }));
+      
       const normalizedLecture = {
         id: lecture.id || lecture.metadata?.id || 'lecture-' + Date.now(),
         title: lecture.title || lecture.metadata?.title || lecture.metadata?.aim || 'Untitled Lecture',
@@ -106,9 +144,7 @@ export function Phase3LectureGeneration() {
           cliffhanger: lecture.introduction?.cliffhanger || '',
           transitionToText: lecture.introduction?.transitionToText || '',
         },
-        body: Array.isArray(lecture.body) 
-          ? lecture.body 
-          : (lecture.body?.divisions || []),
+        body: normalizedBody,
         conclusion: {
           storyResolution: lecture.conclusion?.storyResolution || lecture.conclusion?.content || '',
           callToAction: lecture.conclusion?.callToAction || '',
@@ -117,6 +153,8 @@ export function Phase3LectureGeneration() {
         },
         metadata: lecture.metadata || {},
       };
+      
+      console.log('Normalized lecture:', JSON.stringify(normalizedLecture).substring(0, 500));
       
       setLecture(normalizedLecture);
       setWorshipSongs(result.data.worshipSongs || []);
