@@ -16,6 +16,7 @@ interface GenerationOptions {
   context?: {
     phase1Selection?: StrategicFoundation;
     phase2Selection?: NarrativeArc;
+    phase3Lecture?: Lecture;
     optionsCount?: number;
     settings?: Partial<WorkflowSettings>;
   };
@@ -143,7 +144,7 @@ export class AIService {
       throw new Error('No AI provider configured.');
     }
     const prompt = this.buildPhase4Prompt(options);
-    const response = await this.callAI(prompt, 2000);
+    const response = await this.callAI(prompt, 8000);
     return this.parsePhase4Response(response);
   }
 
@@ -296,44 +297,59 @@ Format as JSON with the full lecture content ${langSpecific}.
   }
 
   private buildPhase4Prompt(options: GenerationOptions): string {
-    const phase3 = options.context?.phase1Selection;
+    const phase1 = options.context?.phase1Selection;
+    const lecture = options.context?.phase3Lecture;
     const language = options.context?.settings?.language || 'en';
     const languageInstruction = this.getLanguageInstruction(language);
 
+    const lectureText = lecture ? `
+INTRODUCTION STORY: ${lecture.introduction.storyOpening}
+CONCLUSION: ${lecture.conclusion.storyResolution}` : '';
+
     return `
-Generate slide prompts for AI image generation based on this lecture.
+Generate visual asset prompts for presentation slides based on this lecture.
 
 ${languageInstruction}
 
 LECTURE AIM:
-${phase3?.aim || 'Not specified'}
+${phase1?.aim || 'Not specified'}
+
+${lecture ? `LECTURE CONTEXT:
+${lectureText}` : ''}
 
 DIVISIONS:
-${phase3?.divisions?.map((d, i) => `
-Section ${i + 1}: ${d.title}
-Text: ${d.principle}
+${phase1?.divisions?.map((d, i) => `
+${i + 1}. ${d.title}
+   Principle: ${d.principle}
 `).join('\n') || 'Not specified'}
 
-Generate prompts for:
-- Title slide
-- Each division section
-- Conclusion
+Generate visual prompts for these slides:
+- Title slide (introductory visual that captures the overall theme)
+- Each division section (visual that illustrates the section's principle)
+- Conclusion slide (summarizing visual that reinforces the main aim)
 
-Format as JSON:
-{
-  "id": "slide_1",
-  "slideSection": "Introduction",
-  "slideNumber": 1,
-  "textOnSlide": "...",
-  "visualPrompt": "Detailed visual metaphor description that complements the spiritual truth without being cheesy",
-  "style": {
-    "mood": "reflective",
-    "colors": ["#...", "#..."],
-    "composition": "...",
-    "lighting": "..."
-  },
-  "notes": "..."
-}
+For each slide, provide:
+1. textOnSlide: 1-2 sentences with the key text to display
+2. visualPrompt: A detailed description for AI image generation (100-150 words) that creates a meaningful visual metaphor without being cheesy. Use symbolism, color theory, and composition thoughtfully.
+3. style: mood, color palette (2-3 hex codes), composition style, lighting
+
+Return as JSON array:
+[
+  {
+    "id": "slide_1",
+    "slideSection": "Title",
+    "slideNumber": 1,
+    "textOnSlide": "...",
+    "visualPrompt": "...",
+    "style": {
+      "mood": "hopeful",
+      "colors": ["#3B82F6", "#10B981"],
+      "composition": "minimalist",
+      "lighting": "warm"
+    },
+    "notes": "Design rationale..."
+  }
+]
     `.trim();
   }
 
@@ -393,62 +409,90 @@ Format as JSON:
 
   private async callOpenAI(prompt: string, maxTokens: number): Promise<string> {
     const apiKey = process.env.OPENAI_API_KEY;
-    
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.model.id,
-        messages: [
-          { role: 'system', content: this.getSystemPrompt() },
-          { role: 'user', content: prompt },
-        ],
-        max_tokens: maxTokens,
-        temperature: this.model.temperature,
-      }),
-    });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minute timeout
+
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.model.id,
+          messages: [
+            { role: 'system', content: this.getSystemPrompt() },
+            { role: 'user', content: prompt },
+          ],
+          max_tokens: maxTokens,
+          temperature: this.model.temperature,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`OpenAI API error: ${error.error?.message || 'Unknown error'}`);
+      }
+
+      const data = await response.json();
+      return data.choices[0]?.message?.content || '';
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Request timeout: The AI request took longer than 3 minutes');
+      }
+      throw error;
     }
-
-    const data = await response.json();
-    return data.choices[0]?.message?.content || '';
   }
 
   private async callAnthropic(prompt: string, maxTokens: number): Promise<string> {
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey || '',
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: this.model.id,
-        max_tokens: maxTokens,
-        temperature: this.model.temperature,
-        system: this.getSystemPrompt(),
-        messages: [
-          { role: 'user', content: prompt },
-        ],
-      }),
-    });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Anthropic API error: ${JSON.stringify(error)}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minute timeout
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey || '',
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: this.model.id,
+          max_tokens: maxTokens,
+          temperature: this.model.temperature,
+          system: this.getSystemPrompt(),
+          messages: [
+            { role: 'user', content: prompt },
+          ],
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`Anthropic API error: ${JSON.stringify(error)}`);
+      }
+
+      const data = await response.json();
+      return data.content[0]?.text || '';
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Request timeout: The AI request took longer than 3 minutes');
+      }
+      throw error;
     }
-
-    const data = await response.json();
-    return data.content[0]?.text || '';
   }
 
   private getSystemPrompt(): string {

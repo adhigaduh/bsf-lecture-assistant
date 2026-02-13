@@ -111,18 +111,19 @@ export function Phase4VisualAssets() {
   };
 
   const generateVisualAssets = async () => {
-    if (!phase1.selected) return;
-    
+    if (!phase1.selected || !phase3.lecture) return;
+
     setPhase4Generating(true);
     const startTime = Date.now();
-    
+
     try {
       const response = await fetch('/api/generate/phase4', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          context: { 
-            phase1Selection: phase1.selected
+        body: JSON.stringify({
+          context: {
+            phase1Selection: phase1.selected,
+            phase3Lecture: phase3.lecture
           }
         }),
       });
