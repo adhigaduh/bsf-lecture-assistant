@@ -1,0 +1,447 @@
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { useWorkflowStore } from '@/lib/workflow-store';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Loader2, Music, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Lecture, WorshipSong } from '@/types/workflow';
+
+function Timer({ isRunning, completedTime, onComplete }: { isRunning: boolean; completedTime?: number; onComplete?: () => void }) {
+  const [seconds, setSeconds] = useState(completedTime ? Math.round(completedTime / 1000) : 0);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (isRunning) {
+      intervalRef.current = setInterval(() => {
+        setSeconds(s => {
+          const newSeconds = s + 1;
+          if (onComplete && newSeconds > 600) {
+            onComplete();
+          }
+          return newSeconds;
+        });
+      }, 1000);
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isRunning, onComplete]);
+
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return (
+    <div className={`flex items-center gap-2 text-sm font-medium ${isRunning ? 'text-blue-600' : 'text-gray-600'}`}>
+      <Clock className="h-4 w-4" />
+      <span>{mins}:{secs.toString().padStart(2, '0')}</span>
+    </div>
+  );
+}
+
+export function Phase3LectureGeneration() {
+  const { 
+    uploadedText, 
+    phase1, 
+    phase2, 
+    phase3, 
+    setLecture, 
+    setWorshipSongs,
+    setPhase3Generating,
+    nextPhase
+  } = useWorkflowStore();
+  
+  const [expandedDivision, setExpandedDivision] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('lecture');
+  const [generationTime, setGenerationTime] = useState<number>(0);
+
+  const generateLecture = async () => {
+    if (!phase1.selected || !phase2.selected) return;
+    
+    setPhase3Generating(true, 0);
+    const startTime = Date.now();
+    
+    try {
+      const response = await fetch('/api/generate/phase3', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          text: uploadedText,
+          context: { 
+            phase1Selection: phase1.selected,
+            phase2Selection: phase2.selected
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `Generation failed: ${response.status}`);
+      }
+
+      setPhase3Generating(true, 50);
+      
+      const result = await response.json();
+      console.log('Phase 3 API response:', JSON.stringify(result).substring(0, 500));
+      
+      if (!result.data?.lecture) {
+        console.error('No lecture in response:', result);
+        throw new Error('Invalid response: lecture data missing');
+      }
+      
+      // Normalize lecture data to match expected format
+      const lecture = result.data.lecture;
+      const normalizedLecture = {
+        id: lecture.id || lecture.metadata?.id || 'lecture-' + Date.now(),
+        title: lecture.title || lecture.metadata?.title || lecture.metadata?.aim || 'Untitled Lecture',
+        scriptureReference: lecture.scriptureReference || lecture.metadata?.scripture_references || '',
+        introduction: {
+          storyOpening: lecture.introduction?.storyOpening || lecture.introduction?.content || '',
+          cliffhanger: lecture.introduction?.cliffhanger || '',
+          transitionToText: lecture.introduction?.transitionToText || '',
+        },
+        body: Array.isArray(lecture.body) 
+          ? lecture.body 
+          : (lecture.body?.divisions || []),
+        conclusion: {
+          storyResolution: lecture.conclusion?.storyResolution || lecture.conclusion?.content || '',
+          callToAction: lecture.conclusion?.callToAction || '',
+          closingPrayer: lecture.conclusion?.closingPrayer || '',
+          finalThought: lecture.conclusion?.finalThought || '',
+        },
+        metadata: lecture.metadata || {},
+      };
+      
+      setLecture(normalizedLecture);
+      setWorshipSongs(result.data.worshipSongs || []);
+      setPhase3Generating(false, 100);
+      setGenerationTime(Date.now() - startTime);
+      
+      // Wait for state to settle and persist
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    } catch (error) {
+      console.error('Phase 3 generation error:', error);
+      alert(`Failed to generate lecture: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setPhase3Generating(false, 0);
+    }
+  };
+
+  const canGenerate = phase1.selected && phase2.selected;
+
+  return (
+    <div className="space-y-6">
+      {!canGenerate ? (
+        <Card>
+          <CardContent className="py-8 text-center text-gray-500">
+            <p>Please complete Phases 1 and 2 first</p>
+          </CardContent>
+        </Card>
+      ) : !phase3.lecture ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Phase 3: Lecture Generation</CardTitle>
+            <CardDescription>
+              Generate the full lecture manuscript based on your selections
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8">
+              <Button 
+                onClick={generateLecture} 
+                disabled={phase3.isGenerating}
+                size="lg"
+              >
+                {phase3.isGenerating ? (
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Generating Lecture... ({phase3.progress}%)</span>
+                    <Timer isRunning={true} />
+                  </div>
+                ) : (
+                  'Generate Full Lecture'
+                )}
+              </Button>
+              {generationTime > 0 && (
+                <div className="flex items-center justify-center gap-2 mt-3">
+                  <Clock className="h-4 w-4 text-green-600" />
+                  <span className="text-sm text-gray-600">Generated in {Math.round(generationTime / 1000)}s</span>
+                </div>
+              )}
+              
+              <div className="mt-4 text-sm text-gray-600 space-y-1">
+                <p><strong>Selected Aim:</strong> {phase1.selected?.aim}</p>
+                <p><strong>Selected Story:</strong> {phase2.selected?.title}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="w-full">
+              <TabsTrigger value="lecture" className="flex-1">Lecture Manuscript</TabsTrigger>
+              <TabsTrigger value="worship" className="flex-1">
+                <Music className="h-4 w-4 mr-2" />
+                Worship Songs
+              </TabsTrigger>
+              <TabsTrigger value="outline" className="flex-1">Outline</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="lecture" className="space-y-6 mt-6">
+              {phase3.lecture ? (
+                <>
+                  {/* Title Card */}
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-2xl">{phase3.lecture.title || 'Untitled'}</CardTitle>
+                        <Badge variant="outline">
+                          <Clock className="h-3 w-3 mr-1" />
+                          {phase3.lecture.metadata?.totalDuration || 0} min
+                        </Badge>
+                      </div>
+                      <CardDescription>{phase3.lecture.scriptureReference || 'No reference'}</CardDescription>
+                    </CardHeader>
+                  </Card>
+
+                  {/* Introduction */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Introduction</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-gray-700 leading-relaxed">
+                        {phase3.lecture.introduction?.storyOpening || ''}
+                      </p>
+                      <div className="mt-4 p-3 bg-amber-50 border-l-4 border-amber-400 rounded-r">
+                        <p className="font-medium text-amber-800">cliffhanger</p>
+                        <p className="text-sm text-amber-700">{phase3.lecture.introduction?.cliffhanger || ''}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Divisions */}
+                  {(() => {
+                    const body = phase3.lecture?.body;
+                    let divisions: any[] = [];
+
+                    if (Array.isArray(body)) {
+                      divisions = body;
+                    } else if (body && typeof body === 'object') {
+                      // Handle object with division_1, division_2, etc.
+                      divisions = Object.values(body).filter((item: any) =>
+                        item && (item.division_number || item.title)
+                      );
+                    }
+                    
+                    return divisions.map((division, index) => (
+                    <Card key={division.id || `div-${index}`}>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-lg">
+                            Division {index + 1}: {division.title || ''}
+                          </CardTitle>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setExpandedDivision(
+                              expandedDivision === division.id ? null : division.id
+                            )}
+                          >
+                            {expandedDivision === division.id ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                        <CardDescription>{division.scriptureRange || ''}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div>
+                            <h4 className="font-medium text-blue-600 mb-2">Principle</h4>
+                            <p className="text-lg font-medium">{division.principle || ''}</p>
+                          </div>
+                          
+                          <div>
+                            <h4 className="font-medium text-gray-700 mb-2">Exposition</h4>
+                            <p className="text-gray-600">{division.exposition || ''}</p>
+                          </div>
+                          
+                          {(expandedDivision === division.id || true) && (
+                            <div className="mt-4 pt-4 border-t">
+                              <h4 className="font-medium text-green-600 mb-3">Application Questions</h4>
+                              <div className="grid gap-4 md:grid-cols-3">
+                                <Card className="bg-blue-50">
+                                  <CardHeader className="pb-2">
+                                    <Badge variant="outline">Young Professionals</Badge>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <p className="text-sm">{division.applications?.youngProfessionals?.question || ''}</p>
+                                  </CardContent>
+                                </Card>
+                                
+                                <Card className="bg-green-50">
+                                  <CardHeader className="pb-2">
+                                    <Badge variant="outline">Fathers/Mid-life</Badge>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <p className="text-sm">{division.applications?.fathersMidLife?.question || ''}</p>
+                                  </CardContent>
+                                </Card>
+                                
+                                <Card className="bg-purple-50">
+                                  <CardHeader className="pb-2">
+                                    <Badge variant="outline">Elders</Badge>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <p className="text-sm">{division.applications?.elders?.question || ''}</p>
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                     </Card>
+                  ))})()}
+
+                  {/* Conclusion */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Conclusion</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <h4 className="font-medium text-gray-700 mb-2">Story Resolution</h4>
+                        <p className="text-gray-600">{phase3.lecture.conclusion?.storyResolution || ''}</p>
+                      </div>
+                      
+                      <div>
+                        <h4 className="font-medium text-gray-700 mb-2">Call to Action</h4>
+                        <p className="text-gray-600">{phase3.lecture.conclusion?.callToAction || ''}</p>
+                      </div>
+                      
+                      <div className="p-4 bg-gray-100 rounded-lg">
+                        <h4 className="font-medium mb-2">Closing Prayer</h4>
+                        <p className="italic text-gray-700">{phase3.lecture.conclusion?.closingPrayer || ''}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              ) : (
+                <Card>
+                  <CardContent className="py-8 text-center text-gray-500">
+                    <p>Lecture not yet generated. Click &quot;Generate Full Lecture&quot; to begin.</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="worship" className="mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Worship Song Suggestions</CardTitle>
+                  <CardDescription>
+                    Songs that complement this lecture theme
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {phase3.worshipSongs.length === 0 ? (
+                    <p className="text-gray-500">No worship songs generated yet</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {phase3.worshipSongs.map((song, index) => (
+                        <Card key={song.id}>
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <h4 className="font-medium">{song.title}</h4>
+                                <p className="text-sm text-gray-500">{song.artist} - {song.source}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline">{song.placement}</Badge>
+                                <Badge className="bg-blue-100 text-blue-800">{song.category}</Badge>
+                              </div>
+                            </div>
+                            <p className="text-sm mt-2 text-gray-600">
+                              <strong>Why it fits:</strong> {song.thematicConnection}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="outline" className="mt-6">
+              {phase3.lecture ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Lecture Outline</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-blue-600">Introduction</Badge>
+                        <span className="text-sm">{phase3.lecture.title || ''}</span>
+                      </div>
+                      
+                      {(phase3.lecture.body || []).map ? (
+                        (Array.isArray(phase3.lecture.body) 
+                          ? phase3.lecture.body 
+                          : Object.values(phase3.lecture.body || {}).filter((d: any) => d && d.title)
+                        ).map((division: any, index: number) => (
+                          <div key={division.id || `div-${index}`} className="flex items-center gap-2">
+                            <Badge variant="outline">{index + 1}</Badge>
+                            <span className="text-sm">{division.title || ''}</span>
+                          </div>
+                        ))
+                      ) : null}
+                      
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-green-600">Conclusion</Badge>
+                        <span className="text-sm">Resolution & Prayer</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="py-8 text-center text-gray-500">
+                    <p>Outline not available. Generate a lecture first.</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+          </Tabs>
+
+          <div className="flex justify-between items-center mt-6">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                useWorkflowStore.getState().clearLecture();
+                useWorkflowStore.getState().setWorshipSongs([]);
+              }}
+            >
+              Clear & Regenerate
+            </Button>
+            
+            <Button onClick={nextPhase} size="lg">
+              Continue to Visual Assets
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

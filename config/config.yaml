@@ -1,0 +1,507 @@
+# BSF Lecture Assistant Configuration
+# This YAML file defines all configurable options for the application
+
+# ============================================================================
+# APP CONFIGURATION
+# ============================================================================
+
+app:
+  name: "BSF Lecture Assistant"
+  version: "1.0.0"
+  description: "AI-powered BSF homiletics preparation tool for Indonesian men"
+  
+  # UI Language Options
+  language:
+    default: "en"
+    options:
+      - code: "en"
+        name: "English"
+        display: "English"
+      - code: "id"
+        name: "Indonesian"
+        display: "Bahasa Indonesia"
+  
+  # Language instructions for AI generation
+  language_instructions:
+    en: "LANGUAGE: ENGLISH (entire lecture must be in English)"
+    id: "LANGUAGE: INDONESIAN (seluruh khotbah harus dalam bahasa Indonesia)"
+  
+  # Theme/Branding
+  theme:
+    primary_color: "#2563eb"
+    secondary_color: "#64748b"
+    accent_color: "#f59e0b"
+    font_family: "Inter"
+
+# ============================================================================
+# AI PROVIDER MODEL CONFIGURATION (Update these when models are upgraded)
+# ============================================================================
+
+ai_models:
+  # Model IDs - update these values when upgrading models
+  # Format: env_var or direct model ID
+  openai_default: "${OPENAI_MODEL:-gpt-4o}"
+  openai_fallback: "${OPENAI_MODEL_MINI:-gpt-4o-mini}"
+  anthropic_default: "${ANTHROPIC_MODEL:-claude-sonnet-4-5}"
+  anthropic_fallback: "${ANTHROPIC_MODEL_OPUS:-claude-opus-4}"
+
+# ============================================================================
+# AI PROVIDER CONFIGURATION
+# ============================================================================
+
+ai_providers:
+  # Primary provider (active)
+  active: "anthropic"
+  
+  # Available providers with their configurations
+  providers:
+    - name: "OpenAI"
+      id: "openai"
+      enabled: true
+      models:
+        - id: "${OPENAI_MODEL:-gpt-4o}"
+          name: "GPT-4o"
+          max_tokens: 4096
+          temperature: 0.7
+          cost_per_1k_input: 0.005
+          cost_per_1k_output: 0.015
+        - id: "${OPENAI_MODEL_MINI:-gpt-4o-mini}"
+          name: "GPT-4o Mini"
+          max_tokens: 4096
+          temperature: 0.7
+          cost_per_1k_input: 0.00015
+          cost_per_1k_output: 0.0006
+      env_var: "OPENAI_API_KEY"
+      base_url: "https://api.openai.com/v1"
+      
+    - name: "Anthropic"
+      id: "anthropic"
+      enabled: true
+      models:
+        - id: "${ANTHROPIC_MODEL:-claude-sonnet-4-5}"
+          name: "Claude Sonnet 4"
+          max_tokens: 8192
+          temperature: 0.7
+          cost_per_1k_input: 0.003
+          cost_per_1k_output: 0.015
+        - id: "${ANTHROPIC_MODEL_OPUS:-claude-opus-4}"
+          name: "Claude Opus 4"
+          max_tokens: 8192
+          temperature: 0.7
+          cost_per_1k_input: 0.015
+          cost_per_1k_output: 0.075
+      env_var: "ANTHROPIC_API_KEY"
+      base_url: "https://api.anthropic.com/v1"
+      
+    - name: "Google Gemini"
+      id: "gemini"
+      enabled: false
+      models:
+        - id: "gemini-1.5-pro"
+          name: "Gemini 1.5 Pro"
+          max_tokens: 8192
+          temperature: 0.7
+      env_var: "GOOGLE_API_KEY"
+      
+    - name: "Local LLM (Ollama)"
+      id: "ollama"
+      enabled: false
+      models:
+        - id: "llama3.1"
+          name: "Llama 3.1"
+          max_tokens: 4096
+      base_url: "http://localhost:11434"
+      local_only: true
+
+# ============================================================================
+# WORKFLOW CONFIGURATION
+# ============================================================================
+
+workflow:
+  # Number of options to generate per phase
+  options_count: 3
+  
+  # Confidence score thresholds
+  confidence_thresholds:
+    high: 80
+    medium: 60
+    low: 40
+  
+  # Phase settings
+  phases:
+    phase1:
+      name: "Strategic Foundation"
+      description: "Analyze text and generate Aim & Divisions"
+      max_output_tokens: 2000
+      
+    phase2:
+      name: "Narrative Arc"
+      description: "Generate bookend story options"
+      max_output_tokens: 1500
+      
+    phase3:
+      name: "Lecture Generation"
+      description: "Create full lecture manuscript"
+      max_output_tokens: 6000
+      
+    phase4:
+      name: "Visual Assets"
+      description: "Generate image prompts table"
+      max_output_tokens: 2000
+
+  # Quick Mode settings
+  quick_mode:
+    enabled: true
+    skip_options: false
+    auto_select: "high_confidence"
+    bypass_story_phase: false
+
+# ============================================================================
+# STORAGE CONFIGURATION
+# ============================================================================
+
+storage:
+  # Local file storage settings
+  local:
+    enabled: true
+    base_directory: "./lectures"
+    formats:
+      - "json"      # Internal format
+      - "markdown"  # Human-readable
+      - "pdf"       # Export format
+      - "docx"      # Word document export
+      - "pptx"      # PowerPoint export
+    
+  # Auto-save settings
+  auto_save:
+    enabled: true
+    interval_seconds: 30
+    max_backups: 10
+
+# ============================================================================
+# GOOGLE DOCS INTEGRATION
+# ============================================================================
+
+google_docs:
+  enabled: true
+  
+  # OAuth Configuration
+  oauth:
+    client_id: "${GOOGLE_CLIENT_ID}"
+    client_secret: "${GOOGLE_CLIENT_SECRET}"
+    redirect_uri: "http://localhost:3000/api/auth/callback/google"
+    scopes:
+      - "https://www.googleapis.com/auth/documents"
+      - "https://www.googleapis.com/auth/drive.file"
+  
+  # Export templates
+  templates:
+    default:
+      font_family: "Roboto"
+      title_size: 24
+      heading_size: 18
+      body_size: 11
+      margins:
+        top: 72     # 1 inch in points
+        bottom: 72
+        left: 72
+        right: 72
+
+# ============================================================================
+# POWERPOINT EXPORT CONFIGURATION
+# ============================================================================
+
+powerpoint:
+  enabled: true
+  template: "bsf_standard"
+  slides:
+    title_slide:
+      include: true
+      layout: "title"
+    outline_slide:
+      include: true
+    body_slides:
+      per_division: true
+      max_bullets: 5
+      font_size: 24
+    application_slides:
+      include: true
+    conclusion_slide:
+      include: true
+  themes:
+    default:
+      primary_color: "2563EB"
+      secondary_color: "64748B"
+      accent_color: "F59E0B"
+      font_family: "Arial"
+
+# ============================================================================
+# PDF PROCESSING CONFIGURATION
+# ============================================================================
+
+pdf_processing:
+  # Maximum file size (in MB)
+  max_file_size: 50
+  
+  # Supported formats
+  supported_formats:
+    - ".pdf"
+    - ".txt"
+    - ".docx"
+    - ".doc"
+  
+  # OCR settings for scanned PDFs
+  ocr:
+    enabled: true
+    language: "eng"
+    
+  # Text extraction settings
+  extraction:
+    preserve_formatting: true
+    extract_headers: true
+    extract_footnotes: false
+
+# ============================================================================
+# AUDIENCE CONFIGURATION
+# ============================================================================
+
+audience:
+  # Default audience profile
+  default_profile: "indonesian_men"
+  
+  # Predefined audience profiles
+  profiles:
+    - id: "indonesian_men"
+      name: "Indonesian Adult Men"
+      characteristics:
+        age_range: "25-65"
+        cultural_context: 
+          - "Emphasis on communal responsibility"
+          - "Fatherhood and family leadership"
+          - "Workplace integrity"
+          - "Respect and hierarchy"
+          - "Group harmony (gotong royong spirit)"
+        language_preference: "indonesian"
+        examples_domain:
+          - "Workplace challenges"
+          - "Family relationships"
+          - "Community service"
+          - "Spiritual leadership"
+
+# ============================================================================
+# WORSHIP SONG SUGGESTIONS
+# ============================================================================
+
+worship_songs:
+  enabled: true
+  categories:
+    - "Adoration"
+    - "Praise"
+    - "Thanksgiving"
+    - "Commitment"
+    - "Response"
+    - "Communion"
+  indonesian_hymns:
+    enabled: true
+    source: "GKJ/GGG"
+  modern_worship:
+    enabled: true
+    source: "International/Indonesian"
+  selection_criteria:
+    - "Thematic relevance to lesson"
+    - "Congregational singability"
+    - "Theological accuracy"
+    - "Cultural appropriateness"
+
+# ============================================================================
+# LECTURE STRUCTURE TEMPLATES
+# ============================================================================
+
+lecture_templates:
+  bsf_standard:
+    name: "BSF Standard Format"
+    structure:
+      introduction:
+        required: true
+        elements:
+          - "bookend_story_opening"
+          - "cliffhanger"
+      
+      body:
+        divisions:
+          min: 2
+          max: 5
+        per_division:
+          - "exposition"
+          - "principle"
+          - "application_questions"
+        application_age_groups:
+          - "young_professionals"
+          - "fathers_mid_life"
+          - "elders"
+      
+      conclusion:
+        required: true
+        elements:
+          - "bookend_story_resolution"
+          - "closing_prayer"
+      
+      visual_assets:
+        required: true
+        format: "table"
+        columns:
+          - "slide_section"
+          - "text_on_slide"
+          - "visual_prompt"
+
+# ============================================================================
+# EXPORT CONFIGURATION
+# ============================================================================
+
+export:
+  formats:
+    - id: "markdown"
+      name: "Markdown"
+      extension: ".md"
+      enabled: true
+      
+    - id: "pdf"
+      name: "PDF Document"
+      extension: ".pdf"
+      enabled: true
+      template: "bsf_lecture"
+      
+    - id: "docx"
+      name: "Microsoft Word"
+      extension: ".docx"
+      enabled: true
+      
+    - id: "google_docs"
+      name: "Google Docs"
+      extension: null
+      enabled: true
+      requires_auth: true
+      
+    - id: "pptx"
+      name: "PowerPoint"
+      extension: ".pptx"
+      enabled: true
+      
+    - id: "json"
+      name: "JSON (Internal)"
+      extension: ".json"
+      enabled: true
+
+# ============================================================================
+# PROMPT TEMPLATES
+# ============================================================================
+
+prompts:
+  system_prompt: |
+    You are an expert BSF (Bible Study Fellowship) Teaching Assistant and 
+    Homiletics Strategist. Your goal is to co-create lectures specifically for 
+    an audience of Indonesian adult men.
+    
+    Core Characteristics:
+    - Theological Depth: Adhere strictly to the provided biblical text
+    - Cultural Context: Tone, examples, and applications must resonate with 
+      Indonesian culture (communal responsibility, fatherhood, leadership, 
+      workplace integrity, respect)
+    - Workflow Adherence: Act as an agent. Do NOT generate full content 
+      immediately. Execute workflow in strict phases.
+  
+  phase1_prompt: |
+    Analyze the provided biblical text and generate {options_count} distinct 
+    options for the Overall Aim and Divisional Principles.
+    
+    For each option provide:
+    1. **Aim:** Single sentence summary of the lesson's goal
+    2. **Divisions:** Break the pericope into logical subsections
+    3. **Principles:** For each division, write a complete sentence stating 
+       a universal spiritual truth about God or men in reference to God
+    4. **Confidence Score:** Probability percentage (0-100%) based on textual 
+       accuracy and relevance to Indonesian men
+  
+  phase2_prompt: |
+    Generate {options_count} options for a "Bookend Story" that will open 
+    and close the lecture.
+    
+    Criteria:
+    - Creates empathy and engagement
+    - Fits the selected "Aim"
+    - Differs in tone (historical, personal illustration, contemporary news)
+    
+    For each option provide:
+    1. Story concept
+    2. Opening hook
+    3. Resolution approach
+    4. Resonance Probability for Indonesian men
+  
+  phase3_prompt: |
+    Write the full lecture manuscript based on selected Aim and Story.
+    
+    Structure:
+    1. **Introduction:** First half of bookend story with cliffhanger
+    2. **The Body (per Division):**
+       - Exposition: Context and text explanation
+       - Principle: Natural derivation from text
+       - Application: 3 questions per age group
+    3. **Conclusion:** Resolve bookend story + closing prayer
+  
+  phase4_prompt: |
+    Generate a table of slide prompts for AI image generation.
+    
+    Columns:
+    - Slide Section
+    - Text on Slide (key verse or principle)
+    - Visual Prompt (detailed metaphor description)
+    
+    Visuals must complement spiritual truth without being cheesy.
+  
+  worship_songs_prompt: |
+    Suggest worship songs that complement this lecture theme.
+    
+    Provide 3-5 song recommendations with:
+    1. Song title
+    2. Artist/Source
+    3. Key lyrics (why it fits)
+    4. Placement (opening, response, closing)
+
+# ============================================================================
+# DEVELOPMENT CONFIGURATION
+# ============================================================================
+
+development:
+  # Hot reload settings
+  hot_reload: true
+  
+  # Debug mode
+  debug: false
+  
+  # Log level: error, warn, info, debug
+  log_level: "info"
+  
+  # Port configuration
+  port: 3000
+  
+  # API rate limiting
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 60
+
+# ============================================================================
+# FEATURE FLAGS
+# ============================================================================
+
+features:
+  pdf_upload: true
+  text_upload: true
+  voice_notes: false
+  collaborative_editing: false
+  version_history: true
+  export_to_google_docs: true
+  export_to_powerpoint: true
+  ai_image_generation: false
+  dark_mode: true
+  worship_song_suggestions: true
+  quick_mode: true
