@@ -51,6 +51,7 @@ export function Phase3LectureGeneration() {
     phase1, 
     phase2, 
     phase3, 
+    phase4,
     setLecture, 
     setWorshipSongs,
     setPhase3Generating,
@@ -64,15 +65,24 @@ export function Phase3LectureGeneration() {
   const [savedMessage, setSavedMessage] = useState('');
 
   const acceptAndSaveLecture = async () => {
-    if (!phase3.lecture) return;
+    if (!phase3.lecture) {
+      alert('No lecture to save');
+      return;
+    }
     
     setIsSaving(true);
     try {
+      console.log('Saving lecture:', phase3.lecture.title);
+      console.log('Visual assets:', phase4.visualAssets);
+      console.log('Worship songs:', phase3.worshipSongs);
+      
       const markdown = exportToMarkdown(
         phase3.lecture,
-        phase4.visualAssets,
-        phase3.worshipSongs
+        phase4?.visualAssets || [],
+        phase3.worshipSongs || []
       );
+      
+      console.log('Markdown length:', markdown.length);
       
       const response = await fetch('/api/save-lecture', {
         method: 'POST',
@@ -84,7 +94,8 @@ export function Phase3LectureGeneration() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to save lecture');
+        const errorText = await response.text();
+        throw new Error(`Failed: ${response.status} - ${errorText}`);
       }
       
       const result = await response.json();
@@ -92,7 +103,7 @@ export function Phase3LectureGeneration() {
       setTimeout(() => setSavedMessage(''), 5000);
     } catch (error) {
       console.error('Error saving lecture:', error);
-      alert('Failed to save lecture');
+      alert(`Failed to save lecture: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSaving(false);
     }
@@ -315,9 +326,11 @@ export function Phase3LectureGeneration() {
                       );
                     }
                     
-                    return divisions.map((division, index) => (
-                    <Card key={division.id || `div-${index}`}>
-                      <CardHeader>
+                    return divisions.map((division, index) => {
+                      console.log('Division:', index, JSON.stringify(division).substring(0, 200));
+                      return (
+                      <Card key={division.id || `div-${index}`}>
+                        <CardHeader>
                         <div className="flex items-center justify-between">
                           <CardTitle className="text-lg">
                             Division {index + 1}: {division.title || ''}
@@ -385,8 +398,9 @@ export function Phase3LectureGeneration() {
                           )}
                         </div>
                       </CardContent>
-                     </Card>
-                  ))})()}
+                      </Card>
+                      );
+                    })}
 
                   {/* Conclusion */}
                   <Card>
