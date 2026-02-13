@@ -154,7 +154,7 @@ export default function Home() {
         )}
 
         {/* Main Content */}
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 p-6 overflow-auto pb-24">
           <div className="max-w-4xl mx-auto">
             <CurrentComponent />
           </div>
@@ -162,7 +162,7 @@ export default function Home() {
       </div>
 
       {/* Navigation Footer */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-white border-t p-4">
+      <footer className="fixed bottom-0 left-0 right-0 bg-white border-t p-3">
         <div className="max-w-4xl mx-auto flex justify-between items-center">
           <Button
             variant="outline"
@@ -184,10 +184,6 @@ export default function Home() {
             Next
             <ChevronRight className="h-4 w-4 ml-2" />
           </Button>
-          
-          <div className="text-xs text-gray-400">
-            canProceed({currentPhase + 1}): {canProceedToPhase((currentPhase + 1) as WorkflowPhase) ? 'true' : 'false'}
-          </div>
         </div>
       </footer>
 
