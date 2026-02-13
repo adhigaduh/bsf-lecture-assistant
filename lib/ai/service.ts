@@ -115,7 +115,7 @@ export class AIService {
       throw new Error('No AI provider configured. Please set ANTHROPIC_API_KEY or OPENAI_API_KEY.');
     }
     const prompt = this.buildPhase1Prompt(options);
-    const response = await this.callAI(prompt, 8000);
+    const response = await this.callAI(prompt, 12000);
     return this.parsePhase1Response(response);
   }
 
@@ -124,7 +124,7 @@ export class AIService {
       throw new Error('No AI provider configured.');
     }
     const prompt = this.buildPhase2Prompt(options);
-    const response = await this.callAI(prompt, 8000);
+    const response = await this.callAI(prompt, 12000);
     return this.parsePhase2Response(response);
   }
 
@@ -524,35 +524,9 @@ Always respond with valid JSON format as requested.`;
       // Single object - wrap in array
       return [parsed];
     } catch (e) {
-      console.error('Direct parse failed:', e instanceof Error ? e.message : e);
-      // Try to find and parse JSON array
-      const arrayMatch = cleanResponse.match(/\[[\s\S]*\]/);
-      if (arrayMatch) {
-        try {
-          const parsed = JSON.parse(arrayMatch[0]);
-          return Array.isArray(parsed) ? parsed : [parsed];
-        } catch (arrErr) {
-          console.error('Array parse failed:', arrErr instanceof Error ? arrErr.message : arrErr);
-        }
-      }
-      // Try object
-      const objectMatch = cleanResponse.match(/\{[\s\S]*\}/);
-      if (objectMatch) {
-        try {
-          const parsed = JSON.parse(objectMatch[0]);
-          // Check for wrapped array
-          if (parsed.stories && Array.isArray(parsed.stories)) {
-            return parsed.stories;
-          }
-          if (parsed.data && Array.isArray(parsed.data)) {
-            return parsed.data;
-          }
-          return [parsed];
-        } catch (objErr) {
-          console.error('Object parse failed:', objErr instanceof Error ? objErr.message : objErr);
-        }
-      }
-      throw new Error(`Failed to parse Phase 2 response: ${e instanceof Error ? e.message : e}`);
+      console.error('Phase 2 parse failed:', e instanceof Error ? e.message : e);
+      // Return empty array instead of throwing to allow retry
+      return [];
     }
   }
 

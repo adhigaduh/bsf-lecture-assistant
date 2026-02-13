@@ -158,36 +158,47 @@ export function Phase3LectureGeneration() {
       }
       
       // Normalize each division to have the expected structure
-      const normalizedBody = bodyArray.map((div: any, idx: number) => ({
-        id: div.id || `div-${idx + 1}`,
-        title: div.title || div.division_title || '',
-        scriptureRange: div.scriptureRange || div.scripture_reference || div.scripture || '',
-        exposition: div.exposition?.content || div.exposition || '',
-        principle: div.principle_statement?.content || div.principle || div.principle_statement || '',
-        applications: {
-          youngProfessionals: {
-            question: div.application?.young_adults?.questions?.[0] || div.application?.young_adults_20s_30s?.questions?.[0] || div.applications?.young_men_20s_30s?.questions?.[0] || '',
-            discussionPoints: div.application?.young_adults?.discussionPoints || div.application?.young_adults_20s_30s?.discussionPoints || [],
-            reflectionTime: div.application?.young_adults?.reflectionTime || 5,
+      const normalizedBody = bodyArray.map((div: any, idx: number) => {
+        // Handle different API response structures
+        const apps = div.application || div.applications || {};
+        
+        return {
+          id: div.id || `div-${idx + 1}`,
+          title: div.title || div.division_title || '',
+          scriptureRange: div.scriptureRange || div.scripture_reference || div.scripture || '',
+          exposition: div.exposition?.content || div.exposition?.text || div.exposition || '',
+          principle: div.principle_statement?.content || div.principle_statement?.text || div.principle || div.principle_statement || '',
+          applications: {
+            youngProfessionals: {
+              question: Array.isArray(apps.young_adults) 
+                ? apps.young_adults[0] 
+                : apps.young_adults?.questions?.[0] || apps.young_men_20s_30s?.questions?.[0] || '',
+              discussionPoints: apps.young_adults?.discussionPoints || [],
+              reflectionTime: 5,
+            },
+            fathersMidLife: {
+              question: Array.isArray(apps.middle_aged) 
+                ? apps.middle_aged[0] 
+                : apps.middle_aged?.questions?.[0] || apps.middle_aged_men_40s_50s?.questions?.[0] || '',
+              discussionPoints: apps.middle_aged?.discussionPoints || [],
+              reflectionTime: 5,
+            },
+            elders: {
+              question: Array.isArray(apps.older_adults) 
+                ? apps.older_adults[0] 
+                : apps.older_adults?.questions?.[0] || apps.older_men_60s_plus?.questions?.[0] || '',
+              discussionPoints: apps.older_adults?.discussionPoints || [],
+              reflectionTime: 5,
+            },
           },
-          fathersMidLife: {
-            question: div.application?.middle_aged?.questions?.[0] || div.application?.middle_aged_40s_50s?.questions?.[0] || div.applications?.middle_aged_men_40s_50s?.questions?.[0] || '',
-            discussionPoints: div.application?.middle_aged?.discussionPoints || div.application?.middle_aged_40s_50s?.discussionPoints || [],
-            reflectionTime: div.application?.middle_aged?.reflectionTime || 5,
-          },
-          elders: {
-            question: div.application?.seniors?.questions?.[0] || div.application?.older_men_60s_plus?.questions?.[0] || div.applications?.older_men_60s_plus?.questions?.[0] || '',
-            discussionPoints: div.application?.seniors?.discussionPoints || div.application?.older_men_60s_plus?.discussionPoints || [],
-            reflectionTime: div.application?.seniors?.reflectionTime || 5,
-          },
-        },
-        transitions: div.transitions || '',
-      }));
+          transitions: div.transitions || '',
+        };
+      });
       
       const normalizedLecture = {
         id: lecture.id || lecture.metadata?.id || 'lecture-' + Date.now(),
-        title: lecture.title || lecture.metadata?.title || lecture.metadata?.aim || 'Untitled Lecture',
-        scriptureReference: lecture.scriptureReference || lecture.metadata?.scripture_references || '',
+        title: lecture.title || lecture.metadata?.title || lecture.metadata?.aim || lecture.metadata?.lecture_aim || 'Untitled Lecture',
+        scriptureReference: lecture.scriptureReference || lecture.metadata?.scripture_references || lecture.metadata?.scripture_passage || '',
         introduction: {
           storyOpening: lecture.introduction?.storyOpening || lecture.introduction?.content || '',
           cliffhanger: lecture.introduction?.cliffhanger || '',
