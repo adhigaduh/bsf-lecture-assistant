@@ -10,10 +10,23 @@ import {
   Lecture,
   VisualAsset,
   WorshipSong,
-  WorkflowSettings
+  WorkflowSettings,
+  User,
+  Document
 } from '@/types/workflow';
 
 interface WorkflowStore extends WorkflowState {
+  // User methods
+  login: (email: string, password: string) => Promise<User | null>;
+  logout: () => void;
+  
+  // Document methods
+  loadDocuments: () => Promise<void>;
+  createDocument: (name: string, description: string) => Promise<Document>;
+  saveCurrentDocument: () => Promise<void>;
+  loadDocument: (documentId: string) => Promise<void>;
+  deleteDocument: (documentId: string) => Promise<void>;
+  switchToDocument: (documentId: string) => void;
   setUploadedText: (text: string, fileName: string) => void;
   clearUploadedText: () => void;
   setPhase1Options: (options: StrategicFoundation[]) => void;
@@ -40,6 +53,9 @@ interface WorkflowStore extends WorkflowState {
 }
 
 const initialState: WorkflowState = {
+  currentUser: null,
+  currentDocumentId: null,
+  documents: [],
   currentPhase: 1,
   uploadedText: '',
   extractedText: '',
@@ -315,11 +331,215 @@ export const useWorkflowStore = create<WorkflowStore>()(
           }
         }
       },
+
+      // User methods
+      login: async (email: string, password: string) => {
+        try {
+          const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Login failed');
+          }
+
+          const result = await response.json();
+          const user = result.user;
+          
+          if (user) {
+            set({ currentUser: user });
+            localStorage.setItem('bsf-user', JSON.stringify(user));
+            await get().loadDocuments();
+            return user;
+          }
+          return null;
+        } catch (error) {
+          console.error('Login error:', error);
+          throw error;
+        }
+      },
+
+      logout: () => {
+        const initial = get();
+        set({ currentUser: null, currentDocumentId: null, documents: [] });
+        localStorage.removeItem('bsf-user');
+        // Reset workflow phases
+        set({
+          currentPhase: 1,
+          uploadedText: '',
+          extractedText: '',
+          fileName: '',
+          phase1: { options: [], selected: null, isGenerating: false, error: null },
+          phase2: { options: [], selected: null, isGenerating: false, error: null },
+          phase3: { lecture: null, worshipSongs: [], isGenerating: false, error: null, progress: 0 },
+          phase4: { visualAssets: [], isGenerating: false, error: null },
+        });
+      },
+
+      // Document methods
+      loadDocuments: async () => {
+        const user = get().currentUser;
+        if (!user) return;
+
+        try {
+          const response = await fetch('/api/documents/list');
+          if (!response.ok) return;
+
+          const result = await response.json();
+          set({ documents: result.documents || [] });
+        } catch (error) {
+          console.error('Failed to load documents:', error);
+        }
+      },
+
+      createDocument: async (name: string, description: string) => {
+        const user = get().currentUser;
+        if (!user) throw new Error('Not logged in');
+
+        try {
+          const response = await fetch('/api/documents/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name,
+              description,
+              userId: user.id,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to create document');
+          }
+
+          const result = await response.json();
+          await get().loadDocuments();
+          return result.document;
+        } catch (error) {
+          console.error('Create document error:', error);
+          throw error;
+        }
+      },
+
+      saveCurrentDocument: async () => {
+        const user = get().currentUser;
+        let documentId = get().currentDocumentId;
+
+        if (!user) return;
+
+        // If no current document, create one
+        if (!documentId) {
+          const doc = await get().createDocument(
+            `Lecture - ${new Date().toLocaleDateString()}`,
+            ''
+          );
+          if (doc) {
+            documentId = doc.id;
+            set({ currentDocumentId: documentId });
+          }
+        }
+
+        // Save document data
+        const state = get();
+        const response = await fetch('/api/documents/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            documentId,
+            lectureData: {
+              currentPhase: state.currentPhase,
+              uploadedText: state.uploadedText,
+              extractedText: state.extractedText,
+              fileName: state.fileName,
+              phase1: state.phase1,
+              phase2: state.phase2,
+              phase3: state.phase3,
+              phase4: state.phase4,
+              settings: state.settings,
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to save document');
+        }
+
+        await get().loadDocuments();
+      },
+
+      loadDocument: async (documentId: string) => {
+        try {
+          const response = await fetch('/api/documents/load', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ documentId }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to load document');
+          }
+
+          const result = await response.json();
+          const lectureData = result.document?.lectureData;
+
+          if (lectureData) {
+            set({
+              ...lectureData,
+              currentDocumentId: documentId,
+            });
+          }
+        } catch (error) {
+          console.error('Load document error:', error);
+          throw error;
+        }
+      },
+
+      deleteDocument: async (documentId: string) => {
+        try {
+          const response = await fetch('/api/documents/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ documentId }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to delete document');
+          }
+
+          await get().loadDocuments();
+
+          // If deleted current document, reset
+          if (get().currentDocumentId === documentId) {
+            set({ currentDocumentId: null });
+            set({
+              currentPhase: 1,
+              uploadedText: '',
+              extractedText: '',
+              fileName: '',
+              phase1: { options: [], selected: null, isGenerating: false, error: null },
+              phase2: { options: [], selected: null, isGenerating: false, error: null },
+              phase3: { lecture: null, worshipSongs: [], isGenerating: false, error: null, progress: 0 },
+              phase4: { visualAssets: [], isGenerating: false, error: null },
+            });
+          }
+        } catch (error) {
+          console.error('Delete document error:', error);
+          throw error;
+        }
+      },
+
+      switchToDocument: (documentId: string) => {
+        set({ currentDocumentId: documentId });
+      },
     }),
     {
       name: 'bsf-lecture-workflow',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
+        currentUser: state.currentUser,
+        currentDocumentId: state.currentDocumentId,
+        documents: state.documents,
         currentPhase: state.currentPhase,
         uploadedText: state.uploadedText,
         extractedText: state.extractedText,

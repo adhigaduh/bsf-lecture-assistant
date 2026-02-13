@@ -2,7 +2,27 @@
 
 export type WorkflowPhase = 1 | 2 | 3 | 4 | 5;
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: Date;
+}
+
+export interface Document {
+  id: string;
+  userId: string;
+  name: string;
+  description: string;
+  lectureData: WorkflowState;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface WorkflowState {
+  currentUser: User | null;
+  currentDocumentId: string | null;
+  documents: Document[];
   currentPhase: WorkflowPhase;
   uploadedText: string;
   extractedText: string;

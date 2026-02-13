@@ -12,6 +12,7 @@ import { WorkflowStatus } from '@/components/WorkflowStatus';
 import { ProgressBar } from '@/components/ProgressBar';
 import { ClientOnly } from '@/components/ClientOnly';
 import { SettingsPanel } from '@/components/SettingsPanel';
+import { DocumentPanel } from '@/components/DocumentPanel';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -23,7 +24,9 @@ import {
   ChevronRight,
   ChevronLeft,
   Menu,
-  Sparkles
+  Sparkles,
+  FolderOpen,
+  User,
 } from 'lucide-react';
 
 export default function Home() {
@@ -36,10 +39,16 @@ export default function Home() {
     loadFromLocalStorage,
     resetWorkflow,
     settings,
-    updateSettings
+    updateSettings,
+    currentUser,
+    currentDocumentId,
+    documents,
+    saveCurrentDocument,
+    logout
   } = useWorkflowStore();
   
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showDocumentPanel, setShowDocumentPanel] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
 
@@ -48,6 +57,16 @@ export default function Home() {
     updateSettings({ language: 'en' as 'en' | 'id' });
     setIsHydrated(true);
   }, [loadFromLocalStorage, updateSettings]);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (isHydrated && !currentUser) {
+      // Check if we're not already on login page
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+    }
+  }, [isHydrated, currentUser]);
 
   const phases = [
     { id: 1, name: 'Upload', icon: Upload, component: FileUploader },
@@ -74,13 +93,25 @@ export default function Home() {
               <Menu className="h-5 w-5" />
             </Button>
             <h1 className="text-xl font-bold text-gray-900">BSF Lecture Assistant</h1>
-            <Badge variant="outline">{settings.language.toUpperCase()}</Badge>
+            {currentDocumentId && (
+              <Badge variant="outline" className="text-xs">
+                {documents.find(d => d.id === currentDocumentId)?.name || 'Unknown'}
+              </Badge>
+            )}
           </div>
-          
+           
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => setShowSettings(true)}>
               <Settings className="h-4 w-4 mr-2" />
               Settings
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowDocumentPanel(!showDocumentPanel)}
+              className={showDocumentPanel ? 'bg-blue-50' : ''}
+            >
+              <FolderOpen className="h-4 w-4 mr-2" />
+              Documents
             </Button>
             <Button variant="outline" onClick={resetWorkflow}>
               New Lecture
@@ -95,63 +126,60 @@ export default function Home() {
       {/* Workflow Status / Resume */}
       <WorkflowStatus />
 
-      <div className="flex">
-        {/* Sidebar */}
-        {sidebarOpen && (
-          <aside className="w-64 bg-white border-r min-h-[calc(100vh-64px)] p-4">
-            {!isHydrated ? (
-              <div className="p-4 text-center text-gray-500">
-                <p>Loading...</p>
-              </div>
-            ) : (
-              <nav className="space-y-2">
-                {phases.map((phase) => {
-                  const Icon = phase.icon;
-                  const isActive = phase.id === currentPhase;
-                  const isCompleted = phase.id < currentPhase;
-                  const canAccess = phase.id === 1 || canProceedToPhase(phase.id as 1 | 2 | 3 | 4);
-                  const isDisabled = !canAccess && !isActive;
-                  
-                  return (
-                    <Button
-                      key={phase.id}
-                      variant={isActive ? 'default' : 'ghost'}
-                      className="w-full justify-start"
-                      disabled={isDisabled}
-                      onClick={() => {
-                        if (canAccess) {
-                          setCurrentPhase(phase.id as WorkflowPhase);
-                        }
-                      }}
-                    >
-                      <Icon className="h-4 w-4 mr-2" />
-                      {phase.name}
-                      {isCompleted && (
-                        <Badge variant="secondary" className="ml-auto">✓</Badge>
-                      )}
-                    </Button>
-                  );
-                })}
-              </nav>
-            )}
+       <div className="flex">
+         {/* Work Sidebar */}
+         {sidebarOpen && (
+           <aside className="w-64 bg-white border-r min-h-[calc(100vh-64px)] p-4">
+             {!isHydrated ? (
+               <div className="p-4 text-center text-gray-500">
+                 <p>Loading...</p>
+               </div>
+             ) : (
+               <nav className="space-y-2">
+                 {phases.map((phase) => {
+                   const Icon = phase.icon;
+                   const isActive = phase.id === currentPhase;
+                   const isCompleted = phase.id < currentPhase;
+                   const canAccess = phase.id === 1 || canProceedToPhase(phase.id as 1 | 2 | 3 | 4);
+                   const isDisabled = !canAccess && !isActive;
+                   
+                   return (
+                     <Button
+                       key={phase.id}
+                       variant={isActive ? 'default' : 'ghost'}
+                       className="w-full justify-start"
+                       disabled={isDisabled}
+                       onClick={() => {
+                         if (canAccess) {
+                           setCurrentPhase(phase.id as WorkflowPhase);
+                           // Auto-save when switching phases if logged in and has a document
+                           if (currentUser && currentDocumentId) {
+                             saveCurrentDocument();
+                           }
+                         }
+                       }}
+                     >
+                       <Icon className="h-4 w-4 mr-2" />
+                       {phase.name}
+                       {isCompleted && (
+                         <Badge variant="secondary" className="ml-auto">✓</Badge>
+                       )}
+                     </Button>
+                   );
+                 })}
+               </nav>
+             )}
 
-            {/* Quick Mode Toggle */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-              <h3 className="font-medium text-sm mb-2">Quick Mode</h3>
-              <p className="text-xs text-gray-600 mb-2">
-                Skip option selection and auto-select best options
-              </p>
-              <Button
-                variant={settings.quickMode ? 'default' : 'outline'}
-                size="sm"
-                className="w-full"
-                onClick={() => updateSettings({ quickMode: !settings.quickMode })}
-              >
-                {settings.quickMode ? 'Enabled' : 'Disabled'}
-              </Button>
-            </div>
-          </aside>
-        )}
+             {/* Quick Mode Toggle - Removed (not needed with auto-save) */}
+           </aside>
+         )}
+
+         {/* Document Panel (Right Sidebar) */}
+         {showDocumentPanel && (
+           <aside className="w-80 bg-white border-l min-h-[calc(100vh-64px)] p-4 overflow-auto">
+             <DocumentPanel />
+           </aside>
+         )}
 
         {/* Main Content */}
         <main className="flex-1 p-6 overflow-auto pb-24">

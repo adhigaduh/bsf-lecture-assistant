@@ -47,6 +47,9 @@ next-env.d.ts
 # test artifacts
 *.png
 test-*.js
-test-*.json
-test-*.log
+test*.json
+test*.log
 test-results/
+
+# documents (multi-user stored data)
+/documents/
