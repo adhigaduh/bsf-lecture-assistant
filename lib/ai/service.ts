@@ -19,6 +19,7 @@ interface GenerationOptions {
     optionsCount?: number;
     settings?: Partial<WorkflowSettings>;
   };
+  styleMarkdown?: string;
   model?: string;
 }
 
@@ -246,12 +247,23 @@ Format as JSON:
     const language = options.context?.settings?.language || 'en';
     const languageInstruction = this.getLanguageInstruction(language);
     const langSpecific = language === 'id' ? 'dalam bahasa Indonesia' : 'in English';
+    const styleMarkdown = options.styleMarkdown;
+
+    let styleSection = '';
+    if (styleMarkdown && styleMarkdown.trim().length > 0) {
+      styleSection = `
+STYLE REFERENCE:
+Use the following markdown content as a style guide for tone, structure, and writing approach:
+${styleMarkdown.substring(0, 3000)}
+`;
+    }
 
     return `
 Write the full lecture manuscript based on the selected Strategic Foundation and Narrative Arc.
 
 TARGET WORD COUNT: 3600-4000 words total (aim for ~3800 words)
 ${languageInstruction}
+${styleSection}
 
 SELECTED AIM:
 ${phase1?.aim || 'Not specified'}

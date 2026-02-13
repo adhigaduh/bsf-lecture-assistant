@@ -5,7 +5,7 @@ import { WorshipSong } from '@/types/workflow';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { text, context } = body;
+    const { text, context, styleMarkdown }: { text: string; context: any; styleMarkdown?: string } = body;
 
     if (!text) {
       return NextResponse.json(
@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
       phase: 3,
       text,
       context: context || undefined,
+      styleMarkdown: styleMarkdown || undefined,
     });
 
     let worshipSongs: WorshipSong[] = [];

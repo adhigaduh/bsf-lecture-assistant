@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Music, Clock, ChevronDown, ChevronUp, Save, Check } from 'lucide-react';
+import { Loader2, Music, Clock, ChevronDown, ChevronUp, Save, Check, BookOpen, Upload, FileText } from 'lucide-react';
 import { Lecture, WorshipSong } from '@/types/workflow';
 import { exportToMarkdown } from '@/lib/export/markdown';
 
@@ -64,6 +64,13 @@ export function Phase3LectureGeneration() {
   const [generationTime, setGenerationTime] = useState<number>(0);
   const [isSaving, setIsSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState('');
+  
+  // Markdown style upload state
+  const [styleMarkdown, setStyleMarkdown] = useState('');
+  const [styleFileName, setStyleFileName] = useState('');
+  const [styleFileSize, setStyleFileSize] = useState('');
+  const [isConfirmingStyle, setIsConfirmingStyle] = useState(false);
+  const [styleAnalysis, setStyleAnalysis] = useState<any>(null);
 
   const acceptAndSaveLecture = async () => {
     if (!phase3.lecture) {
@@ -120,12 +127,13 @@ export function Phase3LectureGeneration() {
       const response = await fetch('/api/generate/phase3', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           text: uploadedText,
-          context: { 
+          context: {
             phase1Selection: phase1.selected,
             phase2Selection: phase2.selected
-          }
+          },
+          styleMarkdown: styleMarkdown || undefined,
         }),
       });
 
@@ -269,6 +277,123 @@ export function Phase3LectureGeneration() {
     }
   };
 
+  // Markdown style upload handlers
+
+  // Markdown style upload handlers
+  const handleStyleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setStyleFileName(file.name);
+    setStyleFileSize(formatFileSize(file.size));
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setStyleMarkdown(content);
+      analyzeStyle(content);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleStyleFileDrop = (e: React.DragEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    e.currentTarget.classList.remove('border-blue-500');
+    
+    const file = e.dataTransfer.files?.[0];
+    if (!file || !file.name.endsWith('.md')) {
+      alert('Please upload a markdown (.md) file');
+      return;
+    }
+
+    setStyleFileName(file.name);
+    setStyleFileSize(formatFileSize(file.size));
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setStyleMarkdown(content);
+      analyzeStyle(content);
+    };
+    reader.readAsText(file);
+  };
+
+  const resetStyleMarkdown = () => {
+    setStyleMarkdown('');
+    setStyleFileName('');
+    setStyleFileSize('');
+    setStyleAnalysis(null);
+  };
+
+  const analyzeStyle = (content: string) => {
+    // Extract style elements from markdown
+    const analysis = {
+      tone: '',
+      style: '',
+      structure: '',
+      audience: '',
+      length: content.split(/\s+/).length,
+    };
+
+    // Detect tone indicators
+    const toneKeywords = {
+      conversational: ['conversational', 'story', 'storytelling', 'personal', 'intimate'],
+      formal: ['formal', 'academic', 'scholarly', 'professional', 'academic'],
+      creative: ['creative', 'metaphor', 'poetic', 'literary', 'imaginative'],
+      practical: ['practical', 'application', 'action-oriented', 'instructional'],
+      inspirational: ['inspirational', 'uplifting', 'encouraging', 'motivational', 'encourage'],
+    };
+
+    for (const [tone, keywords] of Object.entries(toneKeywords)) {
+      if (keywords.some(k => content.toLowerCase().includes(k))) {
+        analysis.tone = tone;
+        break;
+      }
+    }
+
+    // Detect style indicators
+    if (content.length > 5000) {
+      analysis.style = 'expositional';
+    } else if (content.includes('##') || content.includes('###')) {
+      analysis.style = 'structured';
+    } else {
+      analysis.style = 'simple';
+    }
+
+    // Detect structure
+    const headingCount = (content.match(/^#+\s/mg) || []).length;
+    if (headingCount > 10) {
+      analysis.structure = 'detailed';
+    } else if (headingCount >= 5) {
+      analysis.structure = 'standard';
+    } else {
+      analysis.structure = 'simple-minimal';
+    }
+
+    // Detect audience
+    if (content.toLowerCase().includes('brother') || content.toLowerCase().includes('men')) {
+      analysis.audience = 'Men';
+    } else if (content.toLowerCase().includes('you') || content.toLowerCase().includes('student')) {
+      analysis.audience = 'General';
+    }
+
+    setStyleAnalysis(analysis);
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const confirmStyleMarkdown = () => {
+    setIsConfirmingStyle(true);
+    
+    setTimeout(() => {
+      setIsConfirmingStyle(false);
+    }, 1500);
+  };
+
   const canGenerate = phase1.selected && phase2.selected;
 
   return (
@@ -288,6 +413,124 @@ export function Phase3LectureGeneration() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <Card className="mb-6 border-2 border-dashed">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <BookOpen className="h-5 w-5" />
+                  Upload Style Reference
+                </CardTitle>
+                <CardDescription>
+                  Upload a markdown (.md) file to guide the lecture's writing style
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!styleMarkdown ? (
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                      styleFileName ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.add('border-blue-500', 'bg-blue-50');
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.remove('border-blue-500', 'bg-blue-50');
+                    }}
+                    onDrop={handleStyleFileDrop}
+                  >
+                    <Upload className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                    <p className="text-sm text-gray-600 mb-4">
+                      Drag and drop a markdown file here, or
+                    </p>
+                    <input
+                      type="file"
+                      accept=".md"
+                      onChange={handleStyleFileSelect}
+                      className="hidden"
+                      id="style-file-input"
+                    />
+                    <label htmlFor="style-file-input">
+                      <Button variant="outline" type="button" asChild>
+                        <span>Browse Files</span>
+                      </Button>
+                    </label>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-6 w-6 text-green-600" />
+                        <div>
+                          <p className="font-medium text-sm">{styleFileName}</p>
+                          <p className="text-xs text-gray-500">{styleFileSize}</p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={resetStyleMarkdown}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        Clear
+                      </Button>
+                    </div>
+
+                    {styleAnalysis && (
+                      <div className="p-4 bg-gray-50 rounded-lg space-y-3">
+                        <h4 className="font-medium text-sm">Style Analysis</h4>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <span className="text-gray-500">Tone:</span>
+                            <span className="ml-2 font-medium">{styleAnalysis.tone || 'Not detected'}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Style:</span>
+                            <span className="ml-2 font-medium">{styleAnalysis.style || 'Not detected'}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Structure:</span>
+                            <span className="ml-2 font-medium">{styleAnalysis.structure || 'Not detected'}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Audience:</span>
+                            <span className="ml-2 font-medium">{styleAnalysis.audience || 'General'}</span>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-gray-500">Length:</span>
+                            <span className="ml-2 font-medium">{styleAnalysis.length} words</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <h4 className="font-medium text-sm mb-2">Preview</h4>
+                      <p className="text-sm text-gray-600 font-mono max-h-40 overflow-y-auto whitespace-pre-wrap">
+                        {styleMarkdown.substring(0, 1000)}
+                        {styleMarkdown.length > 1000 && '...'}
+                      </p>
+                    </div>
+
+                    <Button
+                      onClick={confirmStyleMarkdown}
+                      disabled={isConfirmingStyle}
+                      className="w-full"
+                    >
+                      {isConfirmingStyle ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Confirming Style...
+                        </>
+                      ) : (
+                        'Use This Style'
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <div className="text-center py-8">
               <Button 
                 onClick={generateLecture} 
