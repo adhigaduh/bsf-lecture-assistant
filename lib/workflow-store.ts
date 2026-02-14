@@ -240,7 +240,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
       nextPhase: () => {
         const current = get().currentPhase;
-        if (current < 4) {
+        if (current < 5) {
           set({ currentPhase: (current + 1) as WorkflowPhase });
         }
       },
