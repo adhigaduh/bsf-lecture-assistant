@@ -1031,59 +1031,63 @@ export function Phase3LectureGeneration() {
                </TabsContent>
           </Tabs>
 
-          <div className="flex justify-between items-center mt-6">
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                useWorkflowStore.getState().clearLecture();
-                useWorkflowStore.getState().setWorshipSongs([]);
-                // Trigger regeneration
-                generateLecture();
-              }}
-              disabled={phase3.isGenerating}
-            >
-              {phase3.isGenerating ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                'Clear & Regenerate'
-              )}
-            </Button>
-            
-            <Button onClick={nextPhase} size="lg">
-              Continue to Visual Assets
-            </Button>
-          </div>
-          
-          {/* Accept & Save Button */}
-          {phase3.lecture && !phase3.isGenerating && (
-            <div className="mt-4 flex justify-center">
-              <Button 
-                onClick={acceptAndSaveLecture}
-                disabled={isSaving}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : savedMessage ? (
-                  <>
-                    <Check className="h-4 w-4 mr-2" />
-                    {savedMessage}
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 mr-2" />
-                    Accept & Save Lecture
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
+           <div className="flex justify-between items-center mt-6">
+             <Button 
+               variant="outline" 
+               onClick={() => {
+                 useWorkflowStore.getState().clearLecture();
+                 useWorkflowStore.getState().setWorshipSongs([]);
+                 generateLecture();
+               }}
+               disabled={phase3.isGenerating}
+             >
+               {phase3.isGenerating ? (
+                 <>
+                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                   Generating...
+                 </>
+               ) : (
+                 'Clear & Regenerate'
+               )}
+             </Button>
+
+             {/* Primary action changes based on save state */}
+             {savedMessage ? (
+               <Button onClick={nextPhase} size="lg" className="bg-green-600 hover:bg-green-700">
+                 Proceed to Visual Assets
+                 <Check className="h-4 w-4 ml-2" />
+               </Button>
+             ) : (
+               <Button 
+                 onClick={acceptAndSaveLecture}
+                 disabled={isSaving}
+                 size="lg"
+                 className="bg-blue-600 hover:bg-blue-700"
+               >
+                 {isSaving ? (
+                   <>
+                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                     Saving...
+                   </>
+                 ) : (
+                   <>
+                     <Save className="h-4 w-4 mr-2" />
+                     Accept & Save Lecture
+                   </>
+                 )}
+               </Button>
+             )}
+           </div>
+
+           {/* Success message after saving */}
+           {savedMessage && (
+             <div className="mt-4 flex justify-center">
+               <div className="flex items-center gap-2 text-green-600 bg-green-50 px-4 py-2 rounded-lg">
+                 <Check className="h-4 w-4" />
+                 <span className="text-sm">{savedMessage}</span>
+               </div>
+             </div>
+           )}
         </div>
       )}
     </div>
