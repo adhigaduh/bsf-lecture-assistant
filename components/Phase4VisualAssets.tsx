@@ -139,20 +139,21 @@ export function Phase4VisualAssets() {
 
       const result = await response.json();
       console.log('Phase 4 API response:', result);
-      
+
       if (!result.data) {
         throw new Error('Invalid response: no data returned');
       }
-      
+
       if (!Array.isArray(result.data)) {
         throw new Error('Invalid response: expected array of visual assets');
       }
-      
+
       setVisualAssets(result.data);
       setGenerationTime(Date.now() - startTime);
     } catch (error) {
       console.error('Phase 4 generation error:', error);
       alert(`Failed to generate visual assets: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
       setPhase4Generating(false);
     }
   };

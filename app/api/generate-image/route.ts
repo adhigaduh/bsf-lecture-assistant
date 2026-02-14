@@ -24,45 +24,59 @@ export async function POST(request: NextRequest) {
     // Build the full prompt with text overlay instructions
     let fullPrompt = prompt;
 
+    // Always start with aspect ratio requirement
+    const aspectRatioInstruction = `IMPORTANT: Generate an image with EXACTLY 16:9 aspect ratio (1920x1080 pixels, landscape orientation). This is for a presentation slide.`;
+
     if (textOnSlide) {
-      fullPrompt = `Create a 16:9 aspect ratio presentation slide.
+      fullPrompt = `${aspectRatioInstruction}
 
-BACKGROUND: ${prompt}
+Create a presentation slide with the following background:
+${prompt}
 
-TEXT TO DISPLAY ON SLIDE (overlay this text clearly and elegantly):
+TEXT TO DISPLAY ON SLIDE (overlay this text clearly):
 ${textOnSlide}
 
 DESIGN REQUIREMENTS:
-- 16:9 aspect ratio (1920x1080 pixels)
+- EXACT 16:9 aspect ratio - landscape orientation
 - Text must be clearly readable with good contrast
-- Use elegant typography appropriate for a church/lecture setting
-- Leave appropriate space for text - don't clutter
-- Background should complement but not compete with text
-- Use professional, clean design aesthetic`;
+- Elegant typography for church/lecture setting
+- Leave space for text overlay
+- Professional, clean design`;
 
       if (slideType === 'Title') {
-        fullPrompt += `\n- Title should be prominent and centered
-- "BSF Lecture" should appear as a subtle label
-- Include scripture reference below title`;
+        fullPrompt += `\n\nTITLE SLIDE:
+- Main title prominent and centered
+- "BSF Lecture" as a subtle label/tag
+- Scripture reference below title`;
       } else if (slideType === 'Outline') {
-        fullPrompt += `\n- Use Roman numerals (I, II, III) for list items
-- Clean, minimalist layout for easy reading
-- Include scripture references in parentheses`;
+        fullPrompt += `\n\nOUTLINE SLIDE:
+- Use Roman numerals (I, II, III) for list items
+- Clean, minimalist layout
+- Scripture references in parentheses`;
       } else if (slideType === 'Application') {
-        fullPrompt += `\n- Three-column layout for the three age groups
-- Clear headers for each age group
+        fullPrompt += `\n\nAPPLICATION SLIDE:
+- Three-column layout for age groups
+- Headers: Young Professionals | Fathers/Mid-life | Elders
 - Balanced composition`;
+      } else if (slideType?.startsWith('Principle')) {
+        fullPrompt += `\n\nPRINCIPLE SLIDE:
+- Division title at top
+- Principle statement prominently displayed
+- Visual metaphor background`;
       }
     } else {
-      fullPrompt = `Create a 16:9 aspect ratio presentation slide image.
+      fullPrompt = `${aspectRatioInstruction}
 
-IMAGE DESCRIPTION: ${prompt}
+Create a presentation slide background:
+${prompt}
 
 REQUIREMENTS:
-- 16:9 aspect ratio (1920x1080 pixels)
-- Professional presentation quality
-- Suitable for church/lecture setting`;
+- EXACT 16:9 aspect ratio (1920x1080)
+- Professional quality
+- Church/lecture appropriate`;
     }
+
+    console.log('Image generation prompt:', fullPrompt.substring(0, 500));
 
     // Call Google Gemini 2.5 Flash Image API
     const response = await fetch(
