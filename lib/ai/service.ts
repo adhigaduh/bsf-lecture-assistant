@@ -318,19 +318,29 @@ Format as JSON with the full lecture content ${langSpecific}.
 
     const divisions = phase1?.divisions || [];
     const divisionCount = divisions.length;
-    const totalSlides = 2 + divisionCount + 1; // Title + Outline + Principles + Application
+    // Title(1) + Outline(1) + [Principle(1) + Application(1)] x divisions + Key Verse(1) + Discussion(1) + Prayer(1) + Summary(1)
+    const totalSlides = 2 + (divisionCount * 2) + 4;
 
     return `
 Generate visual slide prompts for a BSF lecture presentation.
 
 CRITICAL REQUIREMENTS:
 1. You MUST generate EXACTLY ${totalSlides} slides
-2. Each slide MUST be 16:9 aspect ratio
+2. Each slide MUST be 16:9 aspect ratio (1920x1080 landscape)
 3. Slides MUST be in this EXACT order with these EXACT slideSection names:
-   - Slide 1: slideSection must be "Title"
-   - Slide 2: slideSection must be "Outline"
-   - Slides 3-${2 + divisionCount}: slideSection must be "Principle 1", "Principle 2", etc.
-   - Slide ${totalSlides}: slideSection must be "Application"
+
+SLIDE ORDER:
+---
+1. "Title" - Lecture title, scripture reference, "BSF Lecture"
+2. "Outline" - Roman numeral list of all divisions
+${divisions.map((d, i) => `
+${3 + i * 2}. "Principle ${i + 1}" - Division ${i + 1} title and principle
+${4 + i * 2}. "Application ${i + 1}" - Application questions for Division ${i + 1} (3 age groups)`).join('')}
+${3 + divisionCount * 2}. "Key Verse" - Memory verse to remember
+${4 + divisionCount * 2}. "Discussion" - Discussion questions for group interaction
+${5 + divisionCount * 2}. "Prayer" - Prayer points for reflection
+${6 + divisionCount * 2}. "Summary" - Key takeaways and final thoughts
+---
 
 ${languageInstruction}
 
@@ -342,29 +352,24 @@ ${divisions.map((d, i) => `
 ${i + 1}. ${d.title}
    Scripture: ${d.scriptureRange}
    Principle: ${d.principle}
-`).join('\n')}
-
-APPLICATIONS:
-${lecture?.body?.map((d, i) => `
-Division ${i + 1}:
-  Young Professionals: ${d.applications?.youngProfessionals?.question || 'N/A'}
-  Fathers/Mid-life: ${d.applications?.fathersMidLife?.question || 'N/A'}
-  Elders: ${d.applications?.elders?.question || 'N/A'}
-`).join('\n') || 'Not specified'}
+   Applications:
+   - Young Professionals: ${lecture?.body?.[i]?.applications?.youngProfessionals?.question || 'N/A'}
+   - Fathers/Mid-life: ${lecture?.body?.[i]?.applications?.fathersMidLife?.question || 'N/A'}
+   - Elders: ${lecture?.body?.[i]?.applications?.elders?.question || 'N/A'}`).join('\n')}
 
 === SLIDE SPECIFICATIONS ===
 
 SLIDE 1 - "Title":
-textOnSlide format:
+textOnSlide:
 ---
 [LECTURE TITLE]
 [Scripture Reference]
 BSF Lecture
 ---
-visualPrompt: Elegant 16:9 background reflecting the lecture theme. Space for centered title text.
+visualPrompt: Elegant background with imagery reflecting the lecture theme.
 
 SLIDE 2 - "Outline":
-textOnSlide format:
+textOnSlide:
 ---
 Outline
 
@@ -372,26 +377,71 @@ I. [Division 1 Title] ([Scripture])
 II. [Division 2 Title] ([Scripture])
 III. [Division 3 Title] ([Scripture])
 ---
-visualPrompt: Clean 16:9 minimalist design for text readability.
+visualPrompt: Clean minimalist design for text readability.
+${divisions.map((d, i) => `
+SLIDE ${3 + i * 2} - "Principle ${i + 1}":
+textOnSlide:
+---
+${d.title}
+"${d.principle}"
+---
+visualPrompt: Visual metaphor that symbolizes this principle memorably.
 
-SLIDES 3-${2 + divisionCount} - "Principle 1", "Principle 2", etc.:
-textOnSlide format:
+SLIDE ${4 + i * 2} - "Application ${i + 1}":
+textOnSlide:
 ---
-[Division Title]
-[The principle statement - the key spiritual truth]
----
-visualPrompt: 16:9 slide with a VISUAL METAPHOR that symbolizes the principle memorably.
+Application: ${d.title}
 
-SLIDE ${totalSlides} - "Application":
-textOnSlide format:
+Young Professionals: [Brief question for this division]
+Fathers/Mid-life: [Brief question for this division]
+Elders: [Brief question for this division]
 ---
-Application
+visualPrompt: Engaging image showing people in life situations relevant to this division.`).join('')}
 
-Young Professionals: [Brief question]
-Fathers/Mid-life: [Brief question]
-Elders: [Brief question]
+SLIDE ${3 + divisionCount * 2} - "Key Verse":
+textOnSlide:
 ---
-visualPrompt: 16:9 slide showing community/generations. Space for three columns.
+Memory Verse
+
+"[Key scripture verse from the lecture]"
+— [Scripture Reference]
+---
+visualPrompt: Beautiful typography-focused slide with subtle decorative background.
+
+SLIDE ${4 + divisionCount * 2} - "Discussion":
+textOnSlide:
+---
+Discussion Questions
+
+1. [Question 1 related to main theme]
+2. [Question 2 for personal reflection]
+3. [Question 3 for group sharing]
+---
+visualPrompt: Community/gathering imagery with space for questions.
+
+SLIDE ${5 + divisionCount * 2} - "Prayer":
+textOnSlide:
+---
+Prayer Points
+
+• [Prayer point 1]
+• [Prayer point 2]
+• [Prayer point 3]
+---
+visualPrompt: Peaceful, contemplative background (candles, hands in prayer, etc.).
+
+SLIDE ${6 + divisionCount * 2} - "Summary":
+textOnSlide:
+---
+Key Takeaways
+
+✓ [Main point 1]
+✓ [Main point 2]
+✓ [Main point 3]
+
+" [Memorable closing quote or principle]"
+---
+visualPrompt: Inspiring image that reinforces the main message.
 
 === OUTPUT FORMAT ===
 Return JSON array with ${totalSlides} slides:
@@ -407,7 +457,7 @@ Return JSON array with ${totalSlides} slides:
   }
 ]
 
-MANDATORY: Return all ${totalSlides} slides with correct slideSection names!
+MANDATORY: Return ALL ${totalSlides} slides with correct slideSection names!
     `.trim();
   }
 
