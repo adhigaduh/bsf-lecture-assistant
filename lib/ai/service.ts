@@ -19,6 +19,11 @@ interface GenerationOptions {
     phase3Lecture?: Lecture;
     optionsCount?: number;
     settings?: Partial<WorkflowSettings>;
+    preferences?: {
+      visualStyle?: string;
+      colorPalette?: string;
+      mood?: string;
+    };
   };
   styleMarkdown?: string;
   model?: string;
@@ -324,6 +329,22 @@ Format as JSON with the full lecture content ${langSpecific}.
     const lecture = options.context?.phase3Lecture;
     const language = options.context?.settings?.language || 'en';
     const languageInstruction = this.getLanguageInstruction(language);
+    const preferences = options.context?.preferences || {};
+
+    const userPreferences = [];
+    if (preferences.visualStyle) {
+      userPreferences.push(`Visual Style Preference: ${preferences.visualStyle}`);
+    }
+    if (preferences.colorPalette) {
+      userPreferences.push(`Color Palette Preference: ${preferences.colorPalette}`);
+    }
+    if (preferences.mood) {
+      userPreferences.push(`Mood Preference: ${preferences.mood}`);
+    }
+
+    const preferencesText = userPreferences.length > 0 
+      ? `\nUSER PREFERENCES (please respect these):\n${userPreferences.join('\n')}\n`
+      : '';
 
     return `
 Generate 3 distinct visual design themes for a BSF lecture presentation.
@@ -342,7 +363,7 @@ Context: Church/Bible study setting
 
 DIVISIONS:
 ${phase1?.divisions?.map((d, i) => `${i + 1}. ${d.title}: ${d.principle}`).join('\n') || 'Not specified'}
-
+${preferencesText}
 Generate 3 distinct design themes that would be effective for this lecture:
 
 For each theme, provide:

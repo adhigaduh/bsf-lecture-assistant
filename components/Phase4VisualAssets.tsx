@@ -72,6 +72,46 @@ export function Phase4VisualAssets() {
   // Per-slide generation options
   const [generateWithoutText, setGenerateWithoutText] = useState(false);
 
+  // Design preferences for theme generation
+  const [visualStylePref, setVisualStylePref] = useState<string>('');
+  const [colorPalettePref, setColorPalettePref] = useState<string>('');
+  const [moodPref, setMoodPref] = useState<string>('');
+
+  const visualStyleOptions = [
+    { value: '', label: 'Auto (AI decides)' },
+    { value: 'photographic', label: 'Photographic (realistic photos)' },
+    { value: 'illustrated', label: 'Illustrated (drawings/illustrations)' },
+    { value: 'minimalist', label: 'Minimalist (simple, clean)' },
+    { value: 'textured', label: 'Textured (paper, fabric, stone textures)' },
+    { value: 'geometric', label: 'Geometric (shapes, patterns)' },
+    { value: 'watercolor', label: 'Watercolor (painted effects)' },
+    { value: 'cinematic', label: 'Cinematic (movie-like scenes)' },
+  ];
+
+  const colorPaletteOptions = [
+    { value: '', label: 'Auto (AI decides)' },
+    { value: 'warm', label: 'Warm Tones (oranges, reds, golds)' },
+    { value: 'cool', label: 'Cool Tones (blues, greens, purples)' },
+    { value: 'neutral', label: 'Neutral (beige, gray, white, brown)' },
+    { value: 'vibrant', label: 'Vibrant (bright, saturated colors)' },
+    { value: 'muted', label: 'Muted (soft, desaturated colors)' },
+    { value: 'monochrome', label: 'Monochrome (variations of one color)' },
+    { value: 'earth', label: 'Earth Tones (natural browns, greens, tans)' },
+    { value: 'pastel', label: 'Pastel (soft pinks, blues, yellows)' },
+  ];
+
+  const moodOptions = [
+    { value: '', label: 'Auto (AI decides)' },
+    { value: 'dramatic', label: 'Dramatic (intense, powerful)' },
+    { value: 'peaceful', label: 'Peaceful (calm, serene)' },
+    { value: 'hopeful', label: 'Hopeful (uplifting, optimistic)' },
+    { value: 'reflective', label: 'Reflective (contemplative, thoughtful)' },
+    { value: 'triumphant', label: 'Triumphant (victorious, celebratory)' },
+    { value: 'intimate', label: 'Intimate (warm, personal)' },
+    { value: 'majestic', label: 'Majestic (grand, awe-inspiring)' },
+    { value: 'somber', label: 'Somber (serious, solemn)' },
+  ];
+
   const generateImage = async (asset: VisualAsset) => {
     setGeneratingImage(asset.id);
     try {
@@ -154,7 +194,12 @@ export function Phase4VisualAssets() {
         body: JSON.stringify({
           context: {
             phase1Selection: phase1.selected,
-            phase3Lecture: phase3.lecture
+            phase3Lecture: phase3.lecture,
+            preferences: {
+              visualStyle: visualStylePref,
+              colorPalette: colorPalettePref,
+              mood: moodPref
+            }
           }
         }),
         signal: abortControllerRef.current.signal,
@@ -385,16 +430,90 @@ Create a beautiful 16:9 title slide background. Leave space for text overlay.`;
               <p>Please complete Phase 3 first</p>
             </div>
           ) : showThemeSelection && designThemes.length === 0 ? (
-            // Step 1: Generate Design Themes
+            // Step 1: Design Preferences & Generate Themes
             <div className="text-center py-8">
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <div className="p-6 bg-gradient-to-br from-purple-50 to-blue-50 rounded-lg border border-purple-200">
                   <Palette className="h-12 w-12 mx-auto mb-4 text-purple-600" />
-                  <h3 className="text-lg font-medium mb-2">Choose a Visual Design Theme</h3>
-                  <p className="text-sm text-gray-600 mb-4 max-w-md mx-auto">
-                    We'll generate 3 distinct design themes tailored to your lecture content and audience. 
-                    Each theme includes color palettes, visual style, and mood recommendations.
+                  <h3 className="text-lg font-medium mb-2">Choose Your Visual Design Preferences</h3>
+                  <p className="text-sm text-gray-600 mb-6 max-w-md mx-auto">
+                    Customize the design direction or leave as "Auto" for AI to decide. 
+                    We'll generate 3 distinct themes based on your preferences.
                   </p>
+                  
+                  {/* Design Preference Dropdowns */}
+                  <div className="max-w-2xl mx-auto mb-6 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Visual Style */}
+                      <div className="text-left">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Visual Style
+                        </label>
+                        <select
+                          value={visualStylePref}
+                          onChange={(e) => setVisualStylePref(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        >
+                          {visualStyleOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      {/* Color Palette */}
+                      <div className="text-left">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Color Palette
+                        </label>
+                        <select
+                          value={colorPalettePref}
+                          onChange={(e) => setColorPalettePref(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        >
+                          {colorPaletteOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      {/* Mood */}
+                      <div className="text-left">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Mood
+                        </label>
+                        <select
+                          value={moodPref}
+                          onChange={(e) => setMoodPref(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        >
+                          {moodOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    
+                    {/* Selected Preferences Summary */}
+                    {(visualStylePref || colorPalettePref || moodPref) && (
+                      <div className="text-left p-3 bg-white/50 rounded-lg text-sm">
+                        <span className="font-medium text-purple-700">Your preferences:</span>
+                        <span className="text-gray-600 ml-2">
+                          {[
+                            visualStylePref && visualStyleOptions.find(o => o.value === visualStylePref)?.label.split(' (')[0],
+                            colorPalettePref && colorPaletteOptions.find(o => o.value === colorPalettePref)?.label.split(' (')[0],
+                            moodPref && moodOptions.find(o => o.value === moodPref)?.label.split(' (')[0]
+                          ].filter(Boolean).join(' • ') || 'None selected'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  
                   <div className="flex items-center justify-center gap-3">
                     <Button 
                       onClick={generateDesignThemes} 

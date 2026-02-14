@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
         phase1Selection: context.phase1Selection,
         phase3Lecture: context.phase3Lecture,
         settings: context.settings,
+        preferences: context.preferences || {},
       },
     });
 
