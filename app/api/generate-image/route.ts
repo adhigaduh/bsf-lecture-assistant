@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     let fullPrompt = prompt;
 
     // Always start with aspect ratio requirement
-    const aspectRatioInstruction = `IMPORTANT: Generate an image with EXACTLY 16:9 aspect ratio (1920x1080 pixels, landscape orientation). This is for a presentation slide.`;
+    const aspectRatioInstruction = `IMPORTANT: Create a widescreen 16:9 slide. Generate an image with EXACTLY 16:9 aspect ratio (1920x1080 pixels, landscape orientation, widescreen format). This is for a presentation slide.`;
 
     if (textOnSlide) {
       fullPrompt = `${aspectRatioInstruction}
@@ -78,7 +78,7 @@ REQUIREMENTS:
 
     console.log('Image generation prompt:', fullPrompt.substring(0, 500));
 
-    // Call Google Gemini 2.5 Flash Image API
+    // Call Google Gemini 2.5 Flash Image API with 16:9 aspect ratio
     const response = await fetch(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=' + apiKey,
       {
@@ -97,6 +97,7 @@ REQUIREMENTS:
             topP: 0.95,
             topK: 64,
             maxOutputTokens: 2048,
+            aspectRatio: '16:9',
           },
         }),
       }
