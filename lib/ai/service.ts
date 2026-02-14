@@ -318,8 +318,8 @@ Format as JSON with the full lecture content ${langSpecific}.
 
     const divisions = phase1?.divisions || [];
     const divisionCount = divisions.length;
-    // Title(1) + Outline(1) + [Principle(1) + Application(1)] x divisions + Key Verse(1) + Discussion(1) + Prayer(1) + Summary(1)
-    const totalSlides = 2 + (divisionCount * 2) + 4;
+    // Title(1) + Outline(1) + [Principle(1) + Memory(1) + Application(1)] x divisions + Discussion(1) + Summary(1)
+    const totalSlides = 2 + (divisionCount * 3) + 2;
 
     return `
 Generate visual slide prompts for a BSF lecture presentation.
@@ -334,12 +334,11 @@ SLIDE ORDER:
 1. "Title" - Lecture title, scripture reference, "BSF Lecture"
 2. "Outline" - Roman numeral list of all divisions
 ${divisions.map((d, i) => `
-${3 + i * 2}. "Principle ${i + 1}" - Division ${i + 1} title and principle
-${4 + i * 2}. "Application ${i + 1}" - Application questions for Division ${i + 1} (3 age groups)`).join('')}
-${3 + divisionCount * 2}. "Key Verse" - Memory verse to remember
-${4 + divisionCount * 2}. "Discussion" - Discussion questions for group interaction
-${5 + divisionCount * 2}. "Prayer" - Prayer points for reflection
-${6 + divisionCount * 2}. "Summary" - Key takeaways and final thoughts
+${3 + i * 3}. "Principle ${i + 1}" - Division ${i + 1} title and principle
+${4 + i * 3}. "Memory ${i + 1}" - Memory aid slide for Division ${i + 1}
+${5 + i * 3}. "Application ${i + 1}" - Application questions for Division ${i + 1}`).join('')}
+${3 + divisionCount * 3}. "Discussion" - Discussion questions for group interaction
+${4 + divisionCount * 3}. "Summary" - Key takeaways and final thoughts
 ---
 
 ${languageInstruction}
@@ -352,6 +351,7 @@ ${divisions.map((d, i) => `
 ${i + 1}. ${d.title}
    Scripture: ${d.scriptureRange}
    Principle: ${d.principle}
+   Exposition themes: ${lecture?.body?.[i]?.exposition?.substring(0, 200) || 'Based on the division principle'}
    Applications:
    - Young Professionals: ${lecture?.body?.[i]?.applications?.youngProfessionals?.question || 'N/A'}
    - Fathers/Mid-life: ${lecture?.body?.[i]?.applications?.fathersMidLife?.question || 'N/A'}
@@ -379,7 +379,7 @@ III. [Division 3 Title] ([Scripture])
 ---
 visualPrompt: Clean minimalist design for text readability.
 ${divisions.map((d, i) => `
-SLIDE ${3 + i * 2} - "Principle ${i + 1}":
+SLIDE ${3 + i * 3} - "Principle ${i + 1}":
 textOnSlide:
 ---
 ${d.title}
@@ -387,7 +387,21 @@ ${d.title}
 ---
 visualPrompt: Visual metaphor that symbolizes this principle memorably.
 
-SLIDE ${4 + i * 2} - "Application ${i + 1}":
+SLIDE ${4 + i * 3} - "Memory ${i + 1}":
+textOnSlide:
+---
+Remember: ${d.title}
+
+[Create a memorable phrase, acronym, or visual mnemonic that captures the main themes from the exposition of this division. Should be catchy and help audience recall the key points.]
+
+Example formats:
+• "FAITH: Forsaking All I Trust Him"
+• "3 R's of Trust: Remember, Respond, Rely"
+• "The Mountain Path: Surrender → Obey → See Provision"
+---
+visualPrompt: Creative, memorable imagery that reinforces the memory aid. Use symbols, icons, or visual patterns that connect to the mnemonic.
+
+SLIDE ${5 + i * 3} - "Application ${i + 1}":
 textOnSlide:
 ---
 Application: ${d.title}
@@ -398,39 +412,18 @@ Elders: [Brief question for this division]
 ---
 visualPrompt: Engaging image showing people in life situations relevant to this division.`).join('')}
 
-SLIDE ${3 + divisionCount * 2} - "Key Verse":
-textOnSlide:
----
-Memory Verse
-
-"[Key scripture verse from the lecture]"
-— [Scripture Reference]
----
-visualPrompt: Beautiful typography-focused slide with subtle decorative background.
-
-SLIDE ${4 + divisionCount * 2} - "Discussion":
+SLIDE ${3 + divisionCount * 3} - "Discussion":
 textOnSlide:
 ---
 Discussion Questions
 
-1. [Question 1 related to main theme]
+1. [Question 1 related to main theme - challenging for all age groups]
 2. [Question 2 for personal reflection]
-3. [Question 3 for group sharing]
+3. [Question 3 for group sharing - encouraging interaction]
 ---
 visualPrompt: Community/gathering imagery with space for questions.
 
-SLIDE ${5 + divisionCount * 2} - "Prayer":
-textOnSlide:
----
-Prayer Points
-
-• [Prayer point 1]
-• [Prayer point 2]
-• [Prayer point 3]
----
-visualPrompt: Peaceful, contemplative background (candles, hands in prayer, etc.).
-
-SLIDE ${6 + divisionCount * 2} - "Summary":
+SLIDE ${4 + divisionCount * 3} - "Summary":
 textOnSlide:
 ---
 Key Takeaways
