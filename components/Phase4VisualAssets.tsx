@@ -69,6 +69,9 @@ export function Phase4VisualAssets() {
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   const [showThemeSelection, setShowThemeSelection] = useState(true);
 
+  // Per-slide generation options
+  const [generateWithoutText, setGenerateWithoutText] = useState(false);
+
   const generateImage = async (asset: VisualAsset) => {
     setGeneratingImage(asset.id);
     try {
@@ -77,8 +80,9 @@ export function Phase4VisualAssets() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           prompt: asset.visualPrompt,
-          textOnSlide: asset.textOnSlide,
-          slideType: asset.slideSection
+          textOnSlide: generateWithoutText ? null : asset.textOnSlide,
+          slideType: asset.slideSection,
+          generateWithoutText: generateWithoutText
         }),
       });
 
@@ -587,9 +591,20 @@ Create a beautiful 16:9 title slide background. Leave space for text overlay.`;
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium">
-                  {phase4.visualAssets.length} Visual Assets Generated
-                </h3>
+                <div>
+                  <h3 className="text-lg font-medium">
+                    {phase4.visualAssets.length} Visual Assets Generated
+                  </h3>
+                  <label className="flex items-center gap-2 text-sm text-gray-600 mt-1 cursor-pointer hover:text-gray-800">
+                    <input
+                      type="checkbox"
+                      checked={generateWithoutText}
+                      onChange={(e) => setGenerateWithoutText(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    Generate images without text (for manual text overlay)
+                  </label>
+                </div>
                 <div className="flex gap-2">
                   <Button 
                     variant="outline" 
