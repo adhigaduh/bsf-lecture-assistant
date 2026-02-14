@@ -139,11 +139,20 @@ export class AIService {
     return this.parsePhase3Response(response);
   }
 
-  async generateVisualAssets(options: GenerationOptions): Promise<VisualAsset[]> {
+  async generateDesignThemes(options: GenerationOptions): Promise<any[]> {
     if (!this.provider) {
       throw new Error('No AI provider configured.');
     }
-    const prompt = this.buildPhase4Prompt(options);
+    const prompt = this.buildDesignThemesPrompt(options);
+    const response = await this.callAI(prompt, 2000);
+    return this.parseDesignThemesResponse(response);
+  }
+
+  async generateVisualAssets(options: GenerationOptions, theme?: any): Promise<VisualAsset[]> {
+    if (!this.provider) {
+      throw new Error('No AI provider configured.');
+    }
+    const prompt = this.buildPhase4Prompt(options, theme);
     const response = await this.callAI(prompt, 8000);
     return this.parsePhase4Response(response);
   }
@@ -310,7 +319,66 @@ Format as JSON with the full lecture content ${langSpecific}.
     `.trim();
   }
 
-  private buildPhase4Prompt(options: GenerationOptions): string {
+  private buildDesignThemesPrompt(options: GenerationOptions): string {
+    const phase1 = options.context?.phase1Selection;
+    const lecture = options.context?.phase3Lecture;
+    const language = options.context?.settings?.language || 'en';
+    const languageInstruction = this.getLanguageInstruction(language);
+
+    return `
+Generate 3 distinct visual design themes for a BSF lecture presentation.
+
+${languageInstruction}
+
+LECTURE TITLE: ${lecture?.title || phase1?.aim || 'Untitled Lecture'}
+SCRIPTURE: ${lecture?.scriptureReference || 'Not specified'}
+
+LECTURE AIM:
+${phase1?.aim || 'Not specified'}
+
+AUDIENCE:
+Indonesian adult men (young professionals, fathers/mid-life, elders)
+Context: Church/Bible study setting
+
+DIVISIONS:
+${phase1?.divisions?.map((d, i) => `${i + 1}. ${d.title}: ${d.principle}`).join('\n') || 'Not specified'}
+
+Generate 3 distinct design themes that would be effective for this lecture:
+
+For each theme, provide:
+1. name: Theme name (e.g., "Warm Sanctuary", "Dramatic Journey", "Minimalist Grace")
+2. description: 2-3 sentences describing the visual approach
+3. colorPalette: Array of 3-4 hex color codes with descriptive names
+4. mood: Overall mood (dramatic, peaceful, triumphant, reflective, hopeful)
+5. visualStyle: Specific visual style (photographic, illustrated, textured, geometric, etc.)
+6. lighting: Lighting description
+7. typography: Typography style (elegant, bold, clean, traditional, modern)
+8. rationale: Why this theme fits the lecture content and audience
+
+Each theme should be distinctly different from the others.
+
+Return as JSON array:
+[
+  {
+    "id": "theme_1",
+    "name": "Theme Name",
+    "description": "Description of the visual approach...",
+    "colorPalette": [
+      {"name": "Deep Blue", "hex": "#1E3A8A"},
+      {"name": "Warm Gold", "hex": "#F59E0B"},
+      {"name": "Soft Cream", "hex": "#FEF3C7"}
+    ],
+    "mood": "peaceful",
+    "visualStyle": "photographic with soft overlays",
+    "lighting": "warm golden hour with soft shadows",
+    "typography": "elegant serif for headers, clean sans-serif for body",
+    "rationale": "This theme works because..."
+  }
+]
+    `.trim();
+  }
+
+  private buildPhase4Prompt(options: GenerationOptions, selectedTheme?: any): string {
     const phase1 = options.context?.phase1Selection;
     const lecture = options.context?.phase3Lecture;
     const language = options.context?.settings?.language || 'en';
@@ -321,8 +389,27 @@ Format as JSON with the full lecture content ${langSpecific}.
     // Title(1) + Outline(1) + [Principle(1) + Memory(1) + Application(1)] x divisions + Discussion(1) + Summary(1)
     const totalSlides = 2 + (divisionCount * 3) + 2;
 
+    const themeContext = selectedTheme ? `
+SELECTED DESIGN THEME:
+Name: ${selectedTheme.name}
+Description: ${selectedTheme.description}
+Color Palette: ${selectedTheme.colorPalette?.map((c: any) => c.hex).join(', ')}
+Mood: ${selectedTheme.mood}
+Visual Style: ${selectedTheme.visualStyle}
+Lighting: ${selectedTheme.lighting}
+Typography: ${selectedTheme.typography}
+
+USE THIS THEME for ALL slides below. Consistency is key.
+` : '';
+
     return `
 Generate visual slide prompts for a BSF lecture presentation.
+
+${languageInstruction}
+${themeContext}
+
+LECTURE TITLE: ${lecture?.title || phase1?.aim || 'Untitled Lecture'}
+SCRIPTURE: ${lecture?.scriptureReference || 'Not specified'}
 
 CRITICAL REQUIREMENTS:
 1. You MUST generate EXACTLY ${totalSlides} slides
@@ -857,6 +944,46 @@ Always respond with valid JSON format as requested.`;
       }));
     } catch (e) {
       console.error('Failed to parse Phase 4 response:', e);
+      return [];
+    }
+  }
+
+  private parseDesignThemesResponse(response: string): any[] {
+    try {
+      // Remove markdown code fences
+      const cleanResponse = response
+        .replace(/```json/g, '')
+        .replace(/```/g, '')
+        .trim();
+      
+      const jsonMatch = cleanResponse.match(/\[[\s\S]*\]/);
+      let themes: any[] = [];
+      
+      if (jsonMatch) {
+        themes = JSON.parse(jsonMatch[0]);
+      } else {
+        const parsed = JSON.parse(cleanResponse);
+        themes = Array.isArray(parsed) ? parsed : [parsed];
+      }
+
+      // Ensure themes have required fields
+      return themes.map((theme, index) => ({
+        id: theme.id || `theme_${index + 1}`,
+        name: theme.name || `Theme ${index + 1}`,
+        description: theme.description || '',
+        colorPalette: theme.colorPalette || [
+          { name: 'Primary', hex: '#3B82F6' },
+          { name: 'Secondary', hex: '#10B981' },
+          { name: 'Accent', hex: '#F59E0B' }
+        ],
+        mood: theme.mood || 'reflective',
+        visualStyle: theme.visualStyle || 'photographic',
+        lighting: theme.lighting || 'soft natural light',
+        typography: theme.typography || 'elegant serif',
+        rationale: theme.rationale || ''
+      }));
+    } catch (e) {
+      console.error('Failed to parse design themes response:', e);
       return [];
     }
   }

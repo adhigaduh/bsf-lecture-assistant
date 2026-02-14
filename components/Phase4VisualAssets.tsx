@@ -5,7 +5,7 @@ import { useWorkflowStore } from '@/lib/workflow-store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Image as ImageIcon, Copy, Check, Download, Clock, XCircle } from 'lucide-react';
+import { Loader2, Image as ImageIcon, Copy, Check, Download, Clock, XCircle, Palette, Eye, Sparkles, ChevronRight } from 'lucide-react';
 import { VisualAsset } from '@/types/workflow';
 
 function Timer({ isRunning, completedTime, onComplete }: { isRunning: boolean; completedTime?: number; onComplete?: () => void }) {
@@ -60,6 +60,14 @@ export function Phase4VisualAssets() {
   const [generatedImages, setGeneratedImages] = useState<Record<string, string>>({});
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Design themes state
+  const [designThemes, setDesignThemes] = useState<any[]>([]);
+  const [selectedTheme, setSelectedTheme] = useState<any | null>(null);
+  const [isGeneratingThemes, setIsGeneratingThemes] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  const [showThemeSelection, setShowThemeSelection] = useState(true);
 
   const generateImage = async (asset: VisualAsset) => {
     setGeneratingImage(asset.id);
@@ -121,12 +129,128 @@ export function Phase4VisualAssets() {
       abortControllerRef.current = null;
     }
     setPhase4Generating(false);
+    setIsGeneratingThemes(false);
+    setIsGeneratingPreview(false);
   };
 
-  const generateVisualAssets = async () => {
+  const generateDesignThemes = async () => {
     if (!phase1.selected || !phase3.lecture) return;
 
-    // Cancel any existing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    abortControllerRef.current = new AbortController();
+    setIsGeneratingThemes(true);
+
+    try {
+      const response = await fetch('/api/generate/themes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context: {
+            phase1Selection: phase1.selected,
+            phase3Lecture: phase3.lecture
+          }
+        }),
+        signal: abortControllerRef.current.signal,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `Generation failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('Design themes response:', result);
+
+      if (!result.data) {
+        throw new Error('Invalid response: no data returned');
+      }
+
+      if (!Array.isArray(result.data)) {
+        throw new Error('Invalid response: expected array of themes');
+      }
+
+      setDesignThemes(result.data);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Generation cancelled by user');
+        return;
+      }
+      console.error('Design themes generation error:', error);
+      alert(`Failed to generate design themes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsGeneratingThemes(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const generatePreviewImage = async () => {
+    if (!selectedTheme || !phase3.lecture) return;
+
+    setIsGeneratingPreview(true);
+
+    try {
+      // Generate just the title slide preview
+      const titlePrompt = `Create a presentation title slide with this design theme:
+Theme: ${selectedTheme.name}
+Description: ${selectedTheme.description}
+Color Palette: ${selectedTheme.colorPalette?.map((c: any) => c.hex).join(', ')}
+Mood: ${selectedTheme.mood}
+Visual Style: ${selectedTheme.visualStyle}
+Lighting: ${selectedTheme.lighting}
+Typography: ${selectedTheme.typography}
+
+Title: ${phase3.lecture.title}
+Scripture: ${phase3.lecture.scriptureReference}
+Label: "BSF Lecture"
+
+Create a beautiful 16:9 title slide background. Leave space for text overlay.`;
+
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: titlePrompt,
+          textOnSlide: `${phase3.lecture.title}\n${phase3.lecture.scriptureReference}\nBSF Lecture`,
+          slideType: 'Title'
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate preview');
+      }
+
+      const result = await response.json();
+
+      if (result.imageData) {
+        setPreviewImage(result.imageData);
+      } else {
+        alert('Preview generation not available');
+      }
+    } catch (error) {
+      console.error('Preview generation error:', error);
+      alert('Failed to generate preview image');
+    } finally {
+      setIsGeneratingPreview(false);
+    }
+  };
+
+  const selectTheme = (theme: any) => {
+    setSelectedTheme(theme);
+    setPreviewImage(null); // Clear previous preview
+  };
+
+  const proceedWithTheme = () => {
+    if (!selectedTheme) return;
+    setShowThemeSelection(false);
+    generateVisualAssetsWithTheme();
+  };
+
+  const generateVisualAssetsWithTheme = async () => {
+    if (!phase1.selected || !phase3.lecture || !selectedTheme) return;
+
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -142,7 +266,8 @@ export function Phase4VisualAssets() {
         body: JSON.stringify({
           context: {
             phase1Selection: phase1.selected,
-            phase3Lecture: phase3.lecture
+            phase3Lecture: phase3.lecture,
+            selectedTheme: selectedTheme
           }
         }),
         signal: abortControllerRef.current.signal,
@@ -176,6 +301,23 @@ export function Phase4VisualAssets() {
     } finally {
       setPhase4Generating(false);
       abortControllerRef.current = null;
+    }
+  };
+
+  const regenerateThemes = () => {
+    setDesignThemes([]);
+    setSelectedTheme(null);
+    setPreviewImage(null);
+    generateDesignThemes();
+  };
+
+  // Legacy function for regenerating without theme selection
+  const generateVisualAssets = async () => {
+    if (selectedTheme) {
+      await generateVisualAssetsWithTheme();
+    } else {
+      // Fallback to default generation
+      await generateVisualAssetsWithTheme();
     }
   };
 
@@ -238,43 +380,208 @@ export function Phase4VisualAssets() {
               <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p>Please complete Phase 3 first</p>
             </div>
-          ) : phase4.visualAssets.length === 0 ? (
+          ) : showThemeSelection && designThemes.length === 0 ? (
+            // Step 1: Generate Design Themes
             <div className="text-center py-8">
-              <div className="flex items-center justify-center gap-3">
-                <Button 
-                  onClick={generateVisualAssets} 
-                  disabled={phase4.isGenerating}
-                  size="lg"
-                >
-                  {phase4.isGenerating ? (
-                    <div className="flex items-center gap-3">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Generating Visual Assets...</span>
-                      <Timer isRunning={true} />
-                    </div>
-                  ) : (
-                    <>
-                      <ImageIcon className="h-4 w-4 mr-2" />
-                      Generate Visual Assets
-                    </>
-                  )}
-                </Button>
-                {phase4.isGenerating && (
-                  <Button 
-                    variant="destructive" 
-                    size="lg"
-                    onClick={cancelGeneration}
-                  >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Cancel
-                  </Button>
-                )}
-              </div>
-              {generationTime > 0 && !phase4.isGenerating && (
-                <div className="flex items-center justify-center gap-2 mt-3">
-                  <Clock className="h-4 w-4 text-green-600" />
-                  <span className="text-sm text-gray-600">Generated in {Math.round(generationTime / 1000)}s</span>
+              <div className="space-y-4">
+                <div className="p-6 bg-gradient-to-br from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+                  <Palette className="h-12 w-12 mx-auto mb-4 text-purple-600" />
+                  <h3 className="text-lg font-medium mb-2">Choose a Visual Design Theme</h3>
+                  <p className="text-sm text-gray-600 mb-4 max-w-md mx-auto">
+                    We'll generate 3 distinct design themes tailored to your lecture content and audience. 
+                    Each theme includes color palettes, visual style, and mood recommendations.
+                  </p>
+                  <div className="flex items-center justify-center gap-3">
+                    <Button 
+                      onClick={generateDesignThemes} 
+                      disabled={isGeneratingThemes}
+                      size="lg"
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      {isGeneratingThemes ? (
+                        <div className="flex items-center gap-3">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Generating Themes...</span>
+                          <Timer isRunning={true} />
+                        </div>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Generate Design Themes
+                        </>
+                      )}
+                    </Button>
+                    {isGeneratingThemes && (
+                      <Button 
+                        variant="destructive" 
+                        size="lg"
+                        onClick={cancelGeneration}
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
                 </div>
+              </div>
+            </div>
+          ) : showThemeSelection && designThemes.length > 0 ? (
+            // Step 2: Select Theme and Preview
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-medium">Select a Design Theme</h3>
+                  <p className="text-sm text-gray-600">Choose the visual style that best fits your lecture</p>
+                </div>
+                <Button variant="outline" onClick={regenerateThemes} disabled={isGeneratingThemes}>
+                  {isGeneratingThemes ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
+                  )}
+                  Generate New Themes
+                </Button>
+              </div>
+
+              {/* Theme Cards */}
+              <div className="grid gap-4 md:grid-cols-3">
+                {designThemes.map((theme, index) => (
+                  <Card 
+                    key={theme.id || index}
+                    className={`cursor-pointer transition-all ${
+                      selectedTheme?.id === theme.id 
+                        ? 'ring-2 ring-purple-500 shadow-lg' 
+                        : 'hover:shadow-md'
+                    }`}
+                    onClick={() => selectTheme(theme)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Badge variant="outline">Theme {index + 1}</Badge>
+                        {selectedTheme?.id === theme.id && (
+                          <Badge className="bg-purple-600">
+                            <Check className="h-3 w-3 mr-1" />
+                            Selected
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      <h4 className="font-medium text-lg mb-2">{theme.name}</h4>
+                      <p className="text-sm text-gray-600 mb-3">{theme.description}</p>
+                      
+                      {/* Color Palette */}
+                      <div className="flex gap-2 mb-3">
+                        {theme.colorPalette?.map((color: any, i: number) => (
+                          <div key={i} className="flex items-center gap-1">
+                            <div 
+                              className="w-6 h-6 rounded border"
+                              style={{ backgroundColor: color.hex }}
+                              title={color.name}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="space-y-1 text-xs text-gray-500">
+                        <p><span className="font-medium">Mood:</span> {theme.mood}</p>
+                        <p><span className="font-medium">Style:</span> {theme.visualStyle}</p>
+                        <p><span className="font-medium">Lighting:</span> {theme.lighting}</p>
+                      </div>
+                      
+                      {theme.rationale && (
+                        <p className="text-xs text-purple-600 mt-2 italic">{theme.rationale}</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Preview Section */}
+              {selectedTheme && (
+                <Card className="border-purple-200">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Eye className="h-5 w-5 text-purple-600" />
+                      Preview: Title Slide
+                    </CardTitle>
+                    <CardDescription>
+                      See how the "{selectedTheme.name}" theme looks with your lecture title
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {previewImage ? (
+                        <div className="relative">
+                          <img 
+                            src={previewImage} 
+                            alt="Title slide preview" 
+                            className="w-full rounded-lg shadow-lg"
+                            style={{ aspectRatio: '16/9' }}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div className="text-center p-8">
+                              <h2 className="text-3xl font-bold text-white drop-shadow-lg mb-2">
+                                {phase3.lecture?.title}
+                              </h2>
+                              <p className="text-xl text-white drop-shadow-md">
+                                {phase3.lecture?.scriptureReference}
+                              </p>
+                              <Badge className="mt-4 bg-white/20 text-white">BSF Lecture</Badge>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-gray-100 rounded-lg flex items-center justify-center" style={{ aspectRatio: '16/9' }}>
+                          <div className="text-center p-8">
+                            <p className="text-gray-500 mb-4">No preview generated yet</p>
+                            <Button 
+                              onClick={generatePreviewImage}
+                              disabled={isGeneratingPreview}
+                            >
+                              {isGeneratingPreview ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Generating Preview...
+                                </>
+                              ) : (
+                                <>
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  Generate Preview
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="flex justify-end gap-3">
+                        <Button 
+                          variant="outline"
+                          onClick={() => setSelectedTheme(null)}
+                        >
+                          Change Theme
+                        </Button>
+                        <Button 
+                          onClick={proceedWithTheme}
+                          disabled={phase4.isGenerating}
+                          className="bg-purple-600 hover:bg-purple-700"
+                        >
+                          {phase4.isGenerating ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Generating Slides...
+                            </>
+                          ) : (
+                            <>
+                              Proceed with This Theme
+                              <ChevronRight className="h-4 w-4 ml-2" />
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
             </div>
           ) : (

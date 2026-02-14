@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       phase: 4,
       text: '',
       context: context || undefined,
-    });
+    }, context.selectedTheme);
 
     return NextResponse.json({
       success: true,
