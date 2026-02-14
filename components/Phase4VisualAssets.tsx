@@ -250,6 +250,23 @@ export function Phase4VisualAssets() {
                   {phase4.visualAssets.length} Visual Assets Generated
                 </h3>
                 <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={generateVisualAssets}
+                    disabled={phase4.isGenerating}
+                  >
+                    {phase4.isGenerating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        Regenerating...
+                      </>
+                    ) : (
+                      <>
+                        <ImageIcon className="h-4 w-4 mr-1" />
+                        Regenerate Prompts
+                      </>
+                    )}
+                  </Button>
                   <Button variant="outline" onClick={copyAllPrompts}>
                     {copyAll ? (
                       <>

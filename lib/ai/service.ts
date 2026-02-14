@@ -318,9 +318,19 @@ Format as JSON with the full lecture content ${langSpecific}.
 
     const divisions = phase1?.divisions || [];
     const divisionCount = divisions.length;
+    const totalSlides = 2 + divisionCount + 1; // Title + Outline + Principles + Application
 
     return `
-Generate visual slide prompts for a BSF lecture presentation. Each slide MUST be 16:9 aspect ratio.
+Generate visual slide prompts for a BSF lecture presentation.
+
+CRITICAL REQUIREMENTS:
+1. You MUST generate EXACTLY ${totalSlides} slides
+2. Each slide MUST be 16:9 aspect ratio
+3. Slides MUST be in this EXACT order with these EXACT slideSection names:
+   - Slide 1: slideSection must be "Title"
+   - Slide 2: slideSection must be "Outline"
+   - Slides 3-${2 + divisionCount}: slideSection must be "Principle 1", "Principle 2", etc.
+   - Slide ${totalSlides}: slideSection must be "Application"
 
 ${languageInstruction}
 
@@ -334,7 +344,7 @@ ${i + 1}. ${d.title}
    Principle: ${d.principle}
 `).join('\n')}
 
-APPLICATIONS (from lecture body):
+APPLICATIONS:
 ${lecture?.body?.map((d, i) => `
 Division ${i + 1}:
   Young Professionals: ${d.applications?.youngProfessionals?.question || 'N/A'}
@@ -342,56 +352,62 @@ Division ${i + 1}:
   Elders: ${d.applications?.elders?.question || 'N/A'}
 `).join('\n') || 'Not specified'}
 
-Generate EXACTLY ${2 + divisionCount + 1} slides in this order:
+=== SLIDE SPECIFICATIONS ===
 
-**SLIDE 1: Title Slide**
-- slideSection: "Title"
-- textOnSlide: Must include:
-  * The lecture title
-  * Scripture reference
-  * "BSF Lecture" as a label
-- visualPrompt: Create a 16:9 slide background with elegant design. Leave space for title text overlay. Use appropriate imagery that reflects the lecture theme.
+SLIDE 1 - "Title":
+textOnSlide format:
+---
+[LECTURE TITLE]
+[Scripture Reference]
+BSF Lecture
+---
+visualPrompt: Elegant 16:9 background reflecting the lecture theme. Space for centered title text.
 
-**SLIDE 2: Outline Slide**
-- slideSection: "Outline"  
-- textOnSlide: Must include:
-  * "Outline" as header
-  * Roman numeral list of all ${divisionCount} divisions with scripture references
-  * Format: "I. Division Title (Scripture)"
-- visualPrompt: 16:9 slide with clean minimalist design for text readability. Subtle background pattern.
+SLIDE 2 - "Outline":
+textOnSlide format:
+---
+Outline
 
-**SLIDES 3-${2 + divisionCount}: Principle Slides (one per division)**
-- slideSection: "Principle" + division number
-- textOnSlide: Must include:
-  * Division title
-  * The principle statement (key spiritual truth)
-- visualPrompt: 16:9 slide with a VISUAL METAPHOR that helps audience remember the principle. The image should symbolize the spiritual truth in a memorable way. Leave clear space for text overlay. Be creative but meaningful.
+I. [Division 1 Title] ([Scripture])
+II. [Division 2 Title] ([Scripture])
+III. [Division 3 Title] ([Scripture])
+---
+visualPrompt: Clean 16:9 minimalist design for text readability.
 
-**SLIDE ${3 + divisionCount}: Application Summary**
-- slideSection: "Application"
-- textOnSlide: Must include all 3 age groups with brief application prompts:
-  * Young Professionals: [brief question]
-  * Fathers/Mid-life: [brief question]  
-  * Elders: [brief question]
-- visualPrompt: 16:9 slide showing community/generations together. Space for three columns of text.
+SLIDES 3-${2 + divisionCount} - "Principle 1", "Principle 2", etc.:
+textOnSlide format:
+---
+[Division Title]
+[The principle statement - the key spiritual truth]
+---
+visualPrompt: 16:9 slide with a VISUAL METAPHOR that symbolizes the principle memorably.
 
-Return JSON array with ${2 + divisionCount + 1} slides:
+SLIDE ${totalSlides} - "Application":
+textOnSlide format:
+---
+Application
+
+Young Professionals: [Brief question]
+Fathers/Mid-life: [Brief question]
+Elders: [Brief question]
+---
+visualPrompt: 16:9 slide showing community/generations. Space for three columns.
+
+=== OUTPUT FORMAT ===
+Return JSON array with ${totalSlides} slides:
 [
   {
     "id": "slide_1",
     "slideSection": "Title",
     "slideNumber": 1,
-    "textOnSlide": "Full text to display on slide...",
-    "visualPrompt": "Detailed 16:9 slide background description. IMPORTANT: Include instructions to leave space for text overlay. 100-150 words.",
-    "style": {
-      "mood": "reflective",
-      "colors": ["#hex1", "#hex2"],
-      "composition": "centered with text space",
-      "lighting": "soft natural"
-    },
-    "notes": "Design rationale..."
+    "textOnSlide": "...",
+    "visualPrompt": "...",
+    "style": {"mood": "...", "colors": ["#..."], "composition": "...", "lighting": "..."},
+    "notes": "..."
   }
 ]
+
+MANDATORY: Return all ${totalSlides} slides with correct slideSection names!
     `.trim();
   }
 
@@ -749,11 +765,40 @@ Always respond with valid JSON format as requested.`;
   private parsePhase4Response(response: string): VisualAsset[] {
     try {
       const jsonMatch = response.match(/\[[\s\S]*\]/);
+      let slides: VisualAsset[] = [];
+      
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+        slides = JSON.parse(jsonMatch[0]);
+      } else {
+        const parsed = JSON.parse(response);
+        slides = Array.isArray(parsed) ? parsed : [parsed];
       }
-      const parsed = JSON.parse(response);
-      return Array.isArray(parsed) ? parsed : [parsed];
+
+      // Validate mandatory slides exist
+      const mandatorySections = ['Title', 'Outline', 'Application'];
+      const existingSections = slides.map(s => s.slideSection);
+      
+      for (const section of mandatorySections) {
+        if (!existingSections.includes(section)) {
+          console.warn(`Missing mandatory slide: ${section}`);
+        }
+      }
+
+      // Ensure slides have required fields
+      return slides.map((slide, index) => ({
+        id: slide.id || `slide_${index + 1}`,
+        slideSection: slide.slideSection || `Slide ${index + 1}`,
+        slideNumber: slide.slideNumber || index + 1,
+        textOnSlide: slide.textOnSlide || '',
+        visualPrompt: slide.visualPrompt || '',
+        style: slide.style || {
+          mood: 'reflective',
+          colors: ['#3B82F6', '#10B981'],
+          composition: 'centered',
+          lighting: 'soft'
+        },
+        notes: slide.notes || ''
+      }));
     } catch (e) {
       console.error('Failed to parse Phase 4 response:', e);
       return [];
