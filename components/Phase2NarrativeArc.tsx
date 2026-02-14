@@ -5,7 +5,9 @@ import { useWorkflowStore } from '@/lib/workflow-store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Check, BookOpen, Clock } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Loader2, Check, BookOpen, Clock, Edit3, X, Save, ChevronDown, ChevronUp } from 'lucide-react';
 import { NarrativeArc } from '@/types/workflow';
 
 function Timer({ isRunning, completedTime, onComplete }: { isRunning: boolean; completedTime?: number; onComplete?: () => void }) {
@@ -58,6 +60,10 @@ export function Phase2NarrativeArc() {
   const [expandedStory, setExpandedStory] = useState<string | null>(null);
   const [generationTime, setGenerationTime] = useState<number>(0);
 
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedOption, setEditedOption] = useState<NarrativeArc | null>(null);
+
   const generateOptions = async () => {
     if (!uploadedText || !phase1.selected) return;
     
@@ -104,7 +110,45 @@ export function Phase2NarrativeArc() {
   };
 
   const selectOption = (option: NarrativeArc) => {
-    selectPhase2Option(option);
+    // Enter edit mode with the selected option
+    setEditedOption(JSON.parse(JSON.stringify(option))); // Deep copy
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setEditedOption(null);
+  };
+
+  const acceptEdit = () => {
+    if (editedOption) {
+      selectPhase2Option(editedOption);
+      setIsEditing(false);
+      setEditedOption(null);
+    }
+  };
+
+  const updateField = (field: keyof NarrativeArc, value: any) => {
+    if (editedOption) {
+      setEditedOption({ ...editedOption, [field]: value });
+    }
+  };
+
+  const updateCharacter = (index: number, field: string, value: string) => {
+    if (editedOption && editedOption.characters) {
+      const newCharacters = [...editedOption.characters];
+      newCharacters[index] = { ...newCharacters[index], [field]: value };
+      setEditedOption({ ...editedOption, characters: newCharacters });
+    }
+  };
+
+  const updateSetting = (field: string, value: string) => {
+    if (editedOption && editedOption.setting) {
+      setEditedOption({
+        ...editedOption,
+        setting: { ...editedOption.setting, [field]: value }
+      });
+    }
   };
 
   const getToneColor = (tone: string) => {
@@ -219,20 +263,43 @@ export function Phase2NarrativeArc() {
                           </div>
                         </div>
                         
-                        {expandedStory === option.id && (
-                          <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                            <p className="text-sm mb-2"><strong>Cliffhanger:</strong></p>
-                            <p className="text-sm mb-3">{option.cliffhanger}</p>
-                            <p className="text-sm mb-2"><strong>Characters:</strong></p>
-                            <ul className="text-sm space-y-1">
-                              {option.characters.map((char, i) => (
-                                <li key={i}>
-                                  {char.name} - {char.role}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                         {expandedStory === option.id && (
+                           <div className="mt-4 p-4 bg-gray-50 rounded-lg space-y-4">
+                             <div>
+                               <p className="text-sm font-medium text-gray-700 mb-1">Opening Story</p>
+                               <p className="text-sm text-gray-600 whitespace-pre-wrap">{option.opening}</p>
+                             </div>
+                             <div>
+                               <p className="text-sm font-medium text-gray-700 mb-1">Cliffhanger</p>
+                               <p className="text-sm text-gray-600 whitespace-pre-wrap">{option.cliffhanger}</p>
+                             </div>
+                             <div>
+                               <p className="text-sm font-medium text-gray-700 mb-1">Resolution</p>
+                               <p className="text-sm text-gray-600 whitespace-pre-wrap">{option.resolution}</p>
+                             </div>
+                             <div>
+                               <p className="text-sm font-medium text-gray-700 mb-1">Characters</p>
+                               <ul className="text-sm space-y-1">
+                                 {option.characters?.map((char, i) => (
+                                   <li key={i} className="text-gray-600">
+                                     <span className="font-medium">{char.name}</span> - {char.role}
+                                     {char.description && <span className="text-gray-400"> ({char.description})</span>}
+                                   </li>
+                                 ))}
+                               </ul>
+                             </div>
+                             {option.setting && (
+                               <div>
+                                 <p className="text-sm font-medium text-gray-700 mb-1">Setting</p>
+                                 <p className="text-sm text-gray-600">
+                                   {option.setting.time && <span>{option.setting.time}</span>}
+                                   {option.setting.place && <span> • {option.setting.place}</span>}
+                                   {option.setting.context && <span> • {option.setting.context}</span>}
+                                 </p>
+                               </div>
+                             )}
+                           </div>
+                         )}
                       </div>
                       
                       <Button 
@@ -249,19 +316,175 @@ export function Phase2NarrativeArc() {
                   </CardContent>
                 </Card>
               ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+             </div>
+           )}
+         </CardContent>
+       </Card>
 
-      {phase2.selected && (
+      {/* Edit Mode - Show after selecting an option */}
+      {isEditing && editedOption && (
+        <Card className="border-2 border-green-300">
+          <CardHeader className="bg-green-50">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Edit3 className="h-5 w-5 text-green-600" />
+                Edit Narrative Arc
+              </CardTitle>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={cancelEdit}>
+                  <X className="h-4 w-4 mr-1" />
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={acceptEdit} className="bg-green-600 hover:bg-green-700">
+                  <Save className="h-4 w-4 mr-1" />
+                  Accept & Continue
+                </Button>
+              </div>
+            </div>
+            <CardDescription>
+              Review and edit the story elements before proceeding to Phase 3
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6 space-y-6">
+            {/* Title */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Story Title</label>
+              <Input
+                value={editedOption.title}
+                onChange={(e) => updateField('title', e.target.value)}
+                placeholder="Story title..."
+              />
+            </div>
+
+            {/* Opening */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Opening Story</label>
+              <Textarea
+                value={editedOption.opening}
+                onChange={(e) => updateField('opening', e.target.value)}
+                rows={4}
+                placeholder="The opening story that introduces the theme..."
+              />
+            </div>
+
+            {/* Cliffhanger */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Cliffhanger</label>
+              <Textarea
+                value={editedOption.cliffhanger}
+                onChange={(e) => updateField('cliffhanger', e.target.value)}
+                rows={3}
+                placeholder="The tension point that creates suspense..."
+              />
+            </div>
+
+            {/* Resolution */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Resolution</label>
+              <Textarea
+                value={editedOption.resolution}
+                onChange={(e) => updateField('resolution', e.target.value)}
+                rows={4}
+                placeholder="How the story resolves and connects to the lecture..."
+              />
+            </div>
+
+            {/* Characters */}
+            {editedOption.characters && editedOption.characters.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Characters</h4>
+                <div className="space-y-3">
+                  {editedOption.characters.map((char, index) => (
+                    <Card key={index} className="bg-gray-50">
+                      <CardContent className="p-3 space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Name</label>
+                            <Input
+                              value={char.name}
+                              onChange={(e) => updateCharacter(index, 'name', e.target.value)}
+                              placeholder="Character name"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Role</label>
+                            <Input
+                              value={char.role}
+                              onChange={(e) => updateCharacter(index, 'role', e.target.value)}
+                              placeholder="Protagonist, Confidant, etc."
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Description</label>
+                          <Input
+                            value={char.description || ''}
+                            onChange={(e) => updateCharacter(index, 'description', e.target.value)}
+                            placeholder="Brief character description"
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Setting */}
+            {editedOption.setting && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Setting</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Time</label>
+                    <Input
+                      value={editedOption.setting.time || ''}
+                      onChange={(e) => updateSetting('time', e.target.value)}
+                      placeholder="e.g., Present day"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Place</label>
+                    <Input
+                      value={editedOption.setting.place || ''}
+                      onChange={(e) => updateSetting('place', e.target.value)}
+                      placeholder="e.g., Jakarta, Indonesia"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Context</label>
+                    <Input
+                      value={editedOption.setting.context || ''}
+                      onChange={(e) => updateSetting('context', e.target.value)}
+                      placeholder="e.g., Career decision"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {phase2.selected && !isEditing && (
         <Card className="bg-green-50 border-green-200">
           <CardContent className="p-4">
-            <h4 className="font-medium flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-600" />
-              Narrative Arc Selected
-            </h4>
-            <p className="text-sm mt-1">{phase2.selected.title}</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-medium flex items-center gap-2">
+                  <Check className="h-4 w-4 text-green-600" />
+                  Narrative Arc Selected
+                </h4>
+                <p className="text-sm mt-1">{phase2.selected.title}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => {
+                setEditedOption(JSON.parse(JSON.stringify(phase2.selected)));
+                setIsEditing(true);
+              }}>
+                <Edit3 className="h-4 w-4 mr-1" />
+                Edit
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
