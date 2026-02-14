@@ -78,7 +78,7 @@ REQUIREMENTS:
 
     console.log('Image generation prompt:', fullPrompt.substring(0, 500));
 
-    // Call Google Gemini 2.5 Flash Image API with 16:9 aspect ratio
+    // Call Google Gemini 2.5 Flash Image API
     const response = await fetch(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=' + apiKey,
       {
@@ -97,7 +97,6 @@ REQUIREMENTS:
             topP: 0.95,
             topK: 64,
             maxOutputTokens: 2048,
-            aspectRatio: '16:9',
           },
         }),
       }
