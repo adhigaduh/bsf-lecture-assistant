@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Loader2, Check, Info, Clock, AlertCircle, Edit3, X, Save } from 'lucide-react';
+import { Loader2, Check, Info, Clock, AlertCircle, Edit3, X, Save, XCircle } from 'lucide-react';
 import { StrategicFoundation } from '@/types/workflow';
 
 function Timer({ isRunning, completedTime, onComplete }: { isRunning: boolean; completedTime?: number; onComplete?: () => void }) {
@@ -64,6 +64,7 @@ export function Phase1StrategicFoundation() {
   
   const [showDetails, setShowDetails] = useState<string | null>(null);
   const [generationTime, setGenerationTime] = useState<number>(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false);
@@ -71,18 +72,25 @@ export function Phase1StrategicFoundation() {
 
   const generateOptions = async () => {
     if (!uploadedText) return;
-    
+
+    // Cancel any existing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    abortControllerRef.current = new AbortController();
     setPhase1Generating(true);
     const startTime = Date.now();
-    
+
     try {
       const response = await fetch('/api/generate/phase1', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           text: uploadedText,
           context: { optionsCount: 3 }
         }),
+        signal: abortControllerRef.current.signal,
       });
 
       if (!response.ok) {
@@ -92,23 +100,36 @@ export function Phase1StrategicFoundation() {
 
       const result = await response.json();
       console.log('Phase 1 API response:', result);
-      
+
       if (!result.data) {
         throw new Error('Invalid response: no data returned');
       }
-      
+
       if (!Array.isArray(result.data)) {
         throw new Error('Invalid response: expected array of options');
       }
-      
+
       setPhase1Options(result.data);
       setGenerationTime(Date.now() - startTime);
-      setPhase1Generating(false);
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Generation cancelled by user');
+        return;
+      }
       console.error('Phase 1 generation error:', error);
       alert(`Failed to generate options: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
       setPhase1Generating(false);
+      abortControllerRef.current = null;
     }
+  };
+
+  const cancelGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setPhase1Generating(false);
   };
 
   const selectOption = (option: StrategicFoundation) => {
@@ -165,22 +186,34 @@ export function Phase1StrategicFoundation() {
         <CardContent>
           {phase1.options.length === 0 ? (
             <div className="text-center py-8">
-              <Button 
-                onClick={generateOptions} 
-                disabled={phase1.isGenerating}
-                size="lg"
-              >
-                {phase1.isGenerating ? (
-                  <div className="flex items-center gap-3">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Analyzing Text...</span>
-                    <Timer isRunning={true} />
-                  </div>
-                ) : (
-                  'Generate Strategic Foundation Options'
+              <div className="flex items-center justify-center gap-3">
+                <Button 
+                  onClick={generateOptions} 
+                  disabled={phase1.isGenerating}
+                  size="lg"
+                >
+                  {phase1.isGenerating ? (
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Analyzing Text...</span>
+                      <Timer isRunning={true} />
+                    </div>
+                  ) : (
+                    'Generate Strategic Foundation Options'
+                  )}
+                </Button>
+                {phase1.isGenerating && (
+                  <Button 
+                    variant="destructive" 
+                    size="lg"
+                    onClick={cancelGeneration}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
                 )}
-              </Button>
-              {generationTime > 0 && (
+              </div>
+              {generationTime > 0 && !phase1.isGenerating && (
                 <div className="flex items-center justify-center gap-2 mt-3">
                   <Clock className="h-4 w-4 text-green-600" />
                   <span className="text-sm text-gray-600">Generated in {Math.round(generationTime / 1000)}s</span>

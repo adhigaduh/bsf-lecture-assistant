@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Loader2, Check, BookOpen, Clock, Edit3, X, Save, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Check, BookOpen, Clock, Edit3, X, Save, ChevronDown, ChevronUp, XCircle } from 'lucide-react';
 import { NarrativeArc } from '@/types/workflow';
 
 function Timer({ isRunning, completedTime, onComplete }: { isRunning: boolean; completedTime?: number; onComplete?: () => void }) {
@@ -63,13 +63,20 @@ export function Phase2NarrativeArc() {
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false);
   const [editedOption, setEditedOption] = useState<NarrativeArc | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const generateOptions = async () => {
     if (!uploadedText || !phase1.selected) return;
-    
+
+    // Cancel any existing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    abortControllerRef.current = new AbortController();
     setPhase2Generating(true);
     const startTime = Date.now();
-    
+
     try {
       const response = await fetch('/api/generate/phase2', {
         method: 'POST',
@@ -81,6 +88,7 @@ export function Phase2NarrativeArc() {
             optionsCount: 3 
           }
         }),
+        signal: abortControllerRef.current.signal,
       });
 
       if (!response.ok) {
@@ -101,12 +109,25 @@ export function Phase2NarrativeArc() {
       
       setPhase2Options(result.data);
       setGenerationTime(Date.now() - startTime);
-      setPhase2Generating(false);
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Generation cancelled by user');
+        return;
+      }
       console.error('Phase 2 generation error:', error);
       alert(`Failed to generate story options: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
       setPhase2Generating(false);
+      abortControllerRef.current = null;
     }
+  };
+
+  const cancelGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setPhase2Generating(false);
   };
 
   const selectOption = (option: NarrativeArc) => {
@@ -178,21 +199,33 @@ export function Phase2NarrativeArc() {
             </div>
           ) : phase2.options.length === 0 ? (
             <div className="text-center py-8">
-              <Button 
-                onClick={generateOptions} 
-                disabled={phase2.isGenerating}
-                size="lg"
-              >
-                {phase2.isGenerating ? (
-                  <div className="flex items-center gap-3">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Generating Stories...</span>
-                    <Timer isRunning={true} />
-                  </div>
-                ) : (
-                  'Generate Bookend Story Options'
+              <div className="flex items-center justify-center gap-3">
+                <Button 
+                  onClick={generateOptions} 
+                  disabled={phase2.isGenerating}
+                  size="lg"
+                >
+                  {phase2.isGenerating ? (
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Generating Stories...</span>
+                      <Timer isRunning={true} />
+                    </div>
+                  ) : (
+                    'Generate Bookend Story Options'
+                  )}
+                </Button>
+                {phase2.isGenerating && (
+                  <Button 
+                    variant="destructive" 
+                    size="lg"
+                    onClick={cancelGeneration}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
                 )}
-              </Button>
+              </div>
               {generationTime > 0 && (
                 <div className="flex items-center justify-center gap-2 mt-3">
                   <Clock className="h-4 w-4 text-green-600" />

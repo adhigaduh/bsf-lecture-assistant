@@ -5,7 +5,7 @@ import { useWorkflowStore } from '@/lib/workflow-store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Image as ImageIcon, Copy, Check, Download, Clock } from 'lucide-react';
+import { Loader2, Image as ImageIcon, Copy, Check, Download, Clock, XCircle } from 'lucide-react';
 import { VisualAsset } from '@/types/workflow';
 
 function Timer({ isRunning, completedTime, onComplete }: { isRunning: boolean; completedTime?: number; onComplete?: () => void }) {
@@ -59,6 +59,7 @@ export function Phase4VisualAssets() {
   const [generatingImage, setGeneratingImage] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<Record<string, string>>({});
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const generateImage = async (asset: VisualAsset) => {
     setGeneratingImage(asset.id);
@@ -114,9 +115,23 @@ export function Phase4VisualAssets() {
     }
   };
 
+  const cancelGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setPhase4Generating(false);
+  };
+
   const generateVisualAssets = async () => {
     if (!phase1.selected || !phase3.lecture) return;
 
+    // Cancel any existing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    abortControllerRef.current = new AbortController();
     setPhase4Generating(true);
     const startTime = Date.now();
 
@@ -130,6 +145,7 @@ export function Phase4VisualAssets() {
             phase3Lecture: phase3.lecture
           }
         }),
+        signal: abortControllerRef.current.signal,
       });
 
       if (!response.ok) {
@@ -151,10 +167,15 @@ export function Phase4VisualAssets() {
       setVisualAssets(result.data);
       setGenerationTime(Date.now() - startTime);
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Generation cancelled by user');
+        return;
+      }
       console.error('Phase 4 generation error:', error);
       alert(`Failed to generate visual assets: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setPhase4Generating(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -219,25 +240,37 @@ export function Phase4VisualAssets() {
             </div>
           ) : phase4.visualAssets.length === 0 ? (
             <div className="text-center py-8">
-              <Button 
-                onClick={generateVisualAssets} 
-                disabled={phase4.isGenerating}
-                size="lg"
-              >
-                {phase4.isGenerating ? (
-                  <div className="flex items-center gap-3">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Generating Visual Assets...</span>
-                    <Timer isRunning={true} />
-                  </div>
-                ) : (
-                  <>
-                    <ImageIcon className="h-4 w-4 mr-2" />
-                    Generate Visual Assets
-                  </>
+              <div className="flex items-center justify-center gap-3">
+                <Button 
+                  onClick={generateVisualAssets} 
+                  disabled={phase4.isGenerating}
+                  size="lg"
+                >
+                  {phase4.isGenerating ? (
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Generating Visual Assets...</span>
+                      <Timer isRunning={true} />
+                    </div>
+                  ) : (
+                    <>
+                      <ImageIcon className="h-4 w-4 mr-2" />
+                      Generate Visual Assets
+                    </>
+                  )}
+                </Button>
+                {phase4.isGenerating && (
+                  <Button 
+                    variant="destructive" 
+                    size="lg"
+                    onClick={cancelGeneration}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
                 )}
-              </Button>
-              {generationTime > 0 && (
+              </div>
+              {generationTime > 0 && !phase4.isGenerating && (
                 <div className="flex items-center justify-center gap-2 mt-3">
                   <Clock className="h-4 w-4 text-green-600" />
                   <span className="text-sm text-gray-600">Generated in {Math.round(generationTime / 1000)}s</span>
@@ -268,6 +301,15 @@ export function Phase4VisualAssets() {
                       </>
                     )}
                   </Button>
+                  {phase4.isGenerating && (
+                    <Button 
+                      variant="destructive"
+                      onClick={cancelGeneration}
+                    >
+                      <XCircle className="h-4 w-4 mr-1" />
+                      Cancel
+                    </Button>
+                  )}
                   <Button variant="outline" onClick={copyAllPrompts}>
                     {copyAll ? (
                       <>

@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Music, Clock, ChevronDown, ChevronUp, Save, Check, BookOpen, Upload, FileText, ArrowRight } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Loader2, Music, Clock, ChevronDown, ChevronUp, Save, Check, BookOpen, Upload, FileText, ArrowRight, XCircle, Edit3, X } from 'lucide-react';
 import { Lecture, WorshipSong } from '@/types/workflow';
 import { exportToMarkdown } from '@/lib/export/markdown';
 
@@ -84,6 +86,13 @@ export function Phase3LectureGeneration() {
     currentAgeGroup: string;
   } | null>(null);
 
+  // Lecture edit mode state
+  const [isEditingLecture, setIsEditingLecture] = useState(false);
+  const [editedLecture, setEditedLecture] = useState<Lecture | null>(null);
+  
+  // Abort controller for generation cancellation
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const acceptAndSaveLecture = async () => {
     if (!phase3.lecture) {
       alert('No lecture to save');
@@ -130,9 +139,24 @@ export function Phase3LectureGeneration() {
     }
   };
 
+  const cancelGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setPhase3Generating(false, 0);
+    setIsGeneratingApplications(false);
+  };
+
   const generateLecture = async () => {
     if (!phase1.selected || !phase2.selected) return;
-    
+
+    // Cancel any existing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    abortControllerRef.current = new AbortController();
     setPhase3Generating(true, 0);
     const startTime = Date.now();
     
@@ -148,6 +172,7 @@ export function Phase3LectureGeneration() {
           },
           styleMarkdown: styleMarkdown || undefined,
         }),
+        signal: abortControllerRef.current.signal,
       });
 
       if (!response.ok) {
@@ -381,9 +406,69 @@ export function Phase3LectureGeneration() {
       // Wait for state to settle and persist
       await new Promise(resolve => setTimeout(resolve, 1000));
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Generation cancelled by user');
+        return;
+      }
       console.error('Phase 3 generation error:', error);
       alert(`Failed to generate lecture: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
       setPhase3Generating(false, 0);
+      abortControllerRef.current = null;
+    }
+  };
+
+  // Lecture edit functions
+  const startEditingLecture = () => {
+    if (phase3.lecture) {
+      setEditedLecture(JSON.parse(JSON.stringify(phase3.lecture)));
+      setIsEditingLecture(true);
+    }
+  };
+
+  const cancelEditLecture = () => {
+    setIsEditingLecture(false);
+    setEditedLecture(null);
+  };
+
+  const acceptEditLecture = () => {
+    if (editedLecture) {
+      setLecture(editedLecture);
+      setIsEditingLecture(false);
+      setEditedLecture(null);
+      setIsLectureSaved(false);
+    }
+  };
+
+  const updateLectureTitle = (title: string) => {
+    if (editedLecture) {
+      setEditedLecture({ ...editedLecture, title });
+    }
+  };
+
+  const updateLectureIntroduction = (field: 'storyOpening' | 'cliffhanger' | 'transitionToText', value: string) => {
+    if (editedLecture) {
+      setEditedLecture({
+        ...editedLecture,
+        introduction: { ...editedLecture.introduction, [field]: value }
+      });
+    }
+  };
+
+  const updateLectureConclusion = (field: 'storyResolution' | 'callToAction' | 'closingPrayer' | 'finalThought', value: string) => {
+    if (editedLecture) {
+      setEditedLecture({
+        ...editedLecture,
+        conclusion: { ...editedLecture.conclusion, [field]: value }
+      });
+    }
+  };
+
+  const updateLectureDivision = (divisionIndex: number, field: string, value: string) => {
+    if (editedLecture && editedLecture.body) {
+      const newBody = [...editedLecture.body];
+      newBody[divisionIndex] = { ...newBody[divisionIndex], [field]: value };
+      setEditedLecture({ ...editedLecture, body: newBody });
     }
   };
 
@@ -741,22 +826,34 @@ export function Phase3LectureGeneration() {
             </Card>
 
             <div className="text-center py-8">
-              <Button 
-                onClick={generateLecture} 
-                disabled={phase3.isGenerating}
-                size="lg"
-              >
-                {phase3.isGenerating ? (
-                  <div className="flex items-center gap-3">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Generating Lecture... ({phase3.progress}%)</span>
-                    <Timer isRunning={true} />
-                  </div>
-                ) : (
-                  'Generate Full Lecture'
+              <div className="flex items-center justify-center gap-3">
+                <Button 
+                  onClick={generateLecture} 
+                  disabled={phase3.isGenerating}
+                  size="lg"
+                >
+                  {phase3.isGenerating ? (
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Generating Lecture... ({phase3.progress}%)</span>
+                      <Timer isRunning={true} />
+                    </div>
+                  ) : (
+                    'Generate Full Lecture'
+                  )}
+                </Button>
+                {phase3.isGenerating && (
+                  <Button 
+                    variant="destructive" 
+                    size="lg"
+                    onClick={cancelGeneration}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
                 )}
-              </Button>
-              {generationTime > 0 && (
+              </div>
+              {generationTime > 0 && !phase3.isGenerating && (
                 <div className="flex items-center justify-center gap-2 mt-3">
                   <Clock className="h-4 w-4 text-green-600" />
                   <span className="text-sm text-gray-600">Generated in {Math.round(generationTime / 1000)}s</span>
@@ -795,6 +892,162 @@ export function Phase3LectureGeneration() {
         </Card>
       ) : (
         <div className="space-y-6">
+          {/* Lecture Edit Mode */}
+          {isEditingLecture && editedLecture && (
+            <Card className="border-2 border-amber-300 mb-6">
+              <CardHeader className="bg-amber-50">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Edit3 className="h-5 w-5 text-amber-600" />
+                    Edit Lecture Manuscript
+                  </CardTitle>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={cancelEditLecture}>
+                      <X className="h-4 w-4 mr-1" />
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={acceptEditLecture} className="bg-green-600 hover:bg-green-700">
+                      <Check className="h-4 w-4 mr-1" />
+                      Accept Changes
+                    </Button>
+                  </div>
+                </div>
+                <CardDescription>
+                  Review and edit the lecture content before saving
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                {/* Title */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Lecture Title</label>
+                  <Input
+                    value={editedLecture.title}
+                    onChange={(e) => updateLectureTitle(e.target.value)}
+                    placeholder="Lecture title..."
+                  />
+                </div>
+
+                {/* Introduction */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">Introduction</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Story Opening</label>
+                      <Textarea
+                        value={editedLecture.introduction.storyOpening}
+                        onChange={(e) => updateLectureIntroduction('storyOpening', e.target.value)}
+                        rows={3}
+                        placeholder="The opening story..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Cliffhanger</label>
+                      <Textarea
+                        value={editedLecture.introduction.cliffhanger}
+                        onChange={(e) => updateLectureIntroduction('cliffhanger', e.target.value)}
+                        rows={2}
+                        placeholder="The suspense point..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Transition to Text</label>
+                      <Textarea
+                        value={editedLecture.introduction.transitionToText}
+                        onChange={(e) => updateLectureIntroduction('transitionToText', e.target.value)}
+                        rows={2}
+                        placeholder="Transition to biblical text..."
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Divisions */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">Divisions</h4>
+                  <div className="space-y-4">
+                    {editedLecture.body.map((division, index) => (
+                      <Card key={division.id} className="bg-gray-50">
+                        <CardContent className="p-4 space-y-3">
+                          <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
+                            <Badge variant="outline">Division {index + 1}</Badge>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Title</label>
+                            <Input
+                              value={division.title}
+                              onChange={(e) => updateLectureDivision(index, 'title', e.target.value)}
+                              placeholder="Division title"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Scripture Range</label>
+                            <Input
+                              value={division.scriptureRange}
+                              onChange={(e) => updateLectureDivision(index, 'scriptureRange', e.target.value)}
+                              placeholder="e.g., Genesis 22:1-2"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Exposition</label>
+                            <Textarea
+                              value={division.exposition}
+                              onChange={(e) => updateLectureDivision(index, 'exposition', e.target.value)}
+                              rows={4}
+                              placeholder="Exposition content..."
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Principle</label>
+                            <Textarea
+                              value={division.principle}
+                              onChange={(e) => updateLectureDivision(index, 'principle', e.target.value)}
+                              rows={2}
+                              placeholder="The principle statement..."
+                            />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Conclusion */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">Conclusion</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Story Resolution</label>
+                      <Textarea
+                        value={editedLecture.conclusion.storyResolution}
+                        onChange={(e) => updateLectureConclusion('storyResolution', e.target.value)}
+                        rows={3}
+                        placeholder="How the story resolves..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Call to Action</label>
+                      <Textarea
+                        value={editedLecture.conclusion.callToAction}
+                        onChange={(e) => updateLectureConclusion('callToAction', e.target.value)}
+                        rows={2}
+                        placeholder="Call to action..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Closing Prayer</label>
+                      <Textarea
+                        value={editedLecture.conclusion.closingPrayer}
+                        onChange={(e) => updateLectureConclusion('closingPrayer', e.target.value)}
+                        rows={3}
+                        placeholder="Closing prayer..."
+                      />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="w-full">
               <TabsTrigger value="lecture" className="flex-1">Lecture Manuscript</TabsTrigger>
@@ -1034,52 +1287,64 @@ export function Phase3LectureGeneration() {
           </Tabs>
 
            <div className="flex justify-between items-center mt-6">
-             <Button 
-               variant="outline" 
-               onClick={() => {
-                 useWorkflowStore.getState().clearLecture();
-                 useWorkflowStore.getState().setWorshipSongs([]);
-                 generateLecture();
-               }}
-               disabled={phase3.isGenerating}
-             >
-               {phase3.isGenerating ? (
-                 <>
-                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                   Generating...
-                 </>
-               ) : (
-                 'Clear & Regenerate'
-               )}
-             </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  useWorkflowStore.getState().clearLecture();
+                  useWorkflowStore.getState().setWorshipSongs([]);
+                  generateLecture();
+                }}
+                disabled={phase3.isGenerating}
+              >
+                {phase3.isGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  'Clear & Regenerate'
+                )}
+              </Button>
 
-             {/* Primary action changes based on save state */}
-             {isLectureSaved ? (
-               <Button onClick={nextPhase} size="lg" className="bg-green-600 hover:bg-green-700">
-                 Proceed to Visual Assets
-                 <ArrowRight className="h-4 w-4 ml-2" />
-               </Button>
-             ) : (
-               <Button 
-                 onClick={acceptAndSaveLecture}
-                 disabled={isSaving}
-                 size="lg"
-                 className="bg-blue-600 hover:bg-blue-700"
-               >
-                 {isSaving ? (
-                   <>
-                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                     Saving...
-                   </>
-                 ) : (
-                   <>
-                     <Save className="h-4 w-4 mr-2" />
-                     Accept & Save Lecture
-                   </>
-                 )}
-               </Button>
-             )}
-           </div>
+              {/* Edit button - only show when lecture exists and not editing */}
+              {!isEditingLecture && phase3.lecture && (
+                <Button 
+                  variant="outline"
+                  onClick={startEditingLecture}
+                  disabled={phase3.isGenerating}
+                >
+                  <Edit3 className="h-4 w-4 mr-2" />
+                  Edit Lecture
+                </Button>
+              )}
+
+              {/* Primary action changes based on save state */}
+              {isLectureSaved ? (
+                <Button onClick={nextPhase} size="lg" className="bg-green-600 hover:bg-green-700">
+                  Proceed to Visual Assets
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              ) : (
+                <Button 
+                  onClick={acceptAndSaveLecture}
+                  disabled={isSaving}
+                  size="lg"
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Accept & Save Lecture
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
 
            {/* Success message after saving */}
            {savedMessage && (
