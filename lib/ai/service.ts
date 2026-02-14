@@ -359,6 +359,12 @@ ${i + 1}. ${d.title}
 
 === SLIDE SPECIFICATIONS ===
 
+FOR EACH SLIDE, include these DESIGN ELEMENTS in the visualPrompt:
+- colors: Specify 2-3 hex color codes that match the mood (e.g., ["#1E3A8A", "#F59E0B"])
+- composition: Use "Rule of Thirds" or "centered" or "asymmetrical balance"
+- mood: Choose from: dramatic, peaceful, triumphant, reflective, hopeful
+- lighting: Describe lighting (e.g., "soft natural light", "dramatic backlighting", "warm golden hour")
+
 SLIDE 1 - "Title":
 textOnSlide:
 ---
@@ -366,7 +372,8 @@ textOnSlide:
 [Scripture Reference]
 BSF Lecture
 ---
-visualPrompt: Elegant background with imagery reflecting the lecture theme.
+visualPrompt: Elegant background with imagery reflecting the lecture theme. Use Rule of Thirds composition. Include specific colors that match the theme's mood.
+style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "..."}
 
 SLIDE 2 - "Outline":
 textOnSlide:
@@ -377,7 +384,8 @@ I. [Division 1 Title] ([Scripture])
 II. [Division 2 Title] ([Scripture])
 III. [Division 3 Title] ([Scripture])
 ---
-visualPrompt: Clean minimalist design for text readability.
+visualPrompt: Clean minimalist design for text readability. Use Rule of Thirds to position text. Soft, professional colors.
+style: {"mood": "peaceful", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "soft even lighting"}
 ${divisions.map((d, i) => `
 SLIDE ${3 + i * 3} - "Principle ${i + 1}":
 textOnSlide:
@@ -385,7 +393,8 @@ textOnSlide:
 ${d.title}
 "${d.principle}"
 ---
-visualPrompt: Visual metaphor that symbolizes this principle memorably.
+visualPrompt: Visual metaphor that symbolizes this principle memorably. Use Rule of Thirds composition. Include specific color palette and dramatic or peaceful lighting that reinforces the principle's meaning.
+style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "..."}
 
 SLIDE ${4 + i * 3} - "Memory ${i + 1}":
 textOnSlide:
@@ -399,7 +408,8 @@ Example formats:
 • "3 R's of Trust: Remember, Respond, Rely"
 • "The Mountain Path: Surrender → Obey → See Provision"
 ---
-visualPrompt: Creative, memorable imagery that reinforces the memory aid. Use symbols, icons, or visual patterns that connect to the mnemonic.
+visualPrompt: Creative, memorable imagery that reinforces the memory aid. Use symbols, icons, or visual patterns that connect to the mnemonic. Apply Rule of Thirds. Use bold, memorable colors.
+style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "..."}
 
 SLIDE ${5 + i * 3} - "Application ${i + 1}":
 textOnSlide:
@@ -410,7 +420,8 @@ Young Professionals: [Brief question for this division]
 Fathers/Mid-life: [Brief question for this division]
 Elders: [Brief question for this division]
 ---
-visualPrompt: Engaging image showing people in life situations relevant to this division.`).join('')}
+visualPrompt: Engaging image showing people in life situations relevant to this division. Use Rule of Thirds to create dynamic composition. Warm, relatable colors and natural lighting.
+style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "..."}`).join('')}
 
 SLIDE ${3 + divisionCount * 3} - "Discussion":
 textOnSlide:
@@ -421,7 +432,8 @@ Discussion Questions
 2. [Question 2 for personal reflection]
 3. [Question 3 for group sharing - encouraging interaction]
 ---
-visualPrompt: Community/gathering imagery with space for questions.
+visualPrompt: Community/gathering imagery with space for questions. Use Rule of Thirds. Welcoming colors and warm lighting.
+style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "..."}
 
 SLIDE ${4 + divisionCount * 3} - "Summary":
 textOnSlide:
@@ -434,7 +446,8 @@ Key Takeaways
 
 " [Memorable closing quote or principle]"
 ---
-visualPrompt: Inspiring image that reinforces the main message.
+visualPrompt: Inspiring image that reinforces the main message. Use Rule of Thirds composition. Uplifting colors and lighting that create a sense of completion and hope.
+style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "..."}
 
 === OUTPUT FORMAT ===
 Return JSON array with ${totalSlides} slides:
