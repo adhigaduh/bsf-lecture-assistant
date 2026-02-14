@@ -66,7 +66,11 @@ export function Phase4VisualAssets() {
       const response = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: asset.visualPrompt }),
+        body: JSON.stringify({ 
+          prompt: asset.visualPrompt,
+          textOnSlide: asset.textOnSlide,
+          slideType: asset.slideSection
+        }),
       });
 
       if (!response.ok) {
@@ -74,7 +78,7 @@ export function Phase4VisualAssets() {
       }
 
       const result = await response.json();
-      
+
       if (result.imageData) {
         setGeneratedImages(prev => ({
           ...prev,

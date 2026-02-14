@@ -316,50 +316,78 @@ Format as JSON with the full lecture content ${langSpecific}.
     const language = options.context?.settings?.language || 'en';
     const languageInstruction = this.getLanguageInstruction(language);
 
-    const lectureText = lecture ? `
-INTRODUCTION STORY: ${lecture.introduction.storyOpening}
-CONCLUSION: ${lecture.conclusion.storyResolution}` : '';
+    const divisions = phase1?.divisions || [];
+    const divisionCount = divisions.length;
 
     return `
-Generate visual asset prompts for presentation slides based on this lecture.
+Generate visual slide prompts for a BSF lecture presentation. Each slide MUST be 16:9 aspect ratio.
 
 ${languageInstruction}
 
-LECTURE AIM:
-${phase1?.aim || 'Not specified'}
-
-${lecture ? `LECTURE CONTEXT:
-${lectureText}` : ''}
+LECTURE TITLE: ${lecture?.title || phase1?.aim || 'Untitled Lecture'}
+SCRIPTURE: ${lecture?.scriptureReference || 'Not specified'}
 
 DIVISIONS:
-${phase1?.divisions?.map((d, i) => `
+${divisions.map((d, i) => `
 ${i + 1}. ${d.title}
+   Scripture: ${d.scriptureRange}
    Principle: ${d.principle}
+`).join('\n')}
+
+APPLICATIONS (from lecture body):
+${lecture?.body?.map((d, i) => `
+Division ${i + 1}:
+  Young Professionals: ${d.applications?.youngProfessionals?.question || 'N/A'}
+  Fathers/Mid-life: ${d.applications?.fathersMidLife?.question || 'N/A'}
+  Elders: ${d.applications?.elders?.question || 'N/A'}
 `).join('\n') || 'Not specified'}
 
-Generate visual prompts for these slides:
-- Title slide (introductory visual that captures the overall theme)
-- Each division section (visual that illustrates the section's principle)
-- Conclusion slide (summarizing visual that reinforces the main aim)
+Generate EXACTLY ${2 + divisionCount + 1} slides in this order:
 
-For each slide, provide:
-1. textOnSlide: 1-2 sentences with the key text to display
-2. visualPrompt: A detailed description for AI image generation (100-150 words) that creates a meaningful visual metaphor without being cheesy. Use symbolism, color theory, and composition thoughtfully.
-3. style: mood, color palette (2-3 hex codes), composition style, lighting
+**SLIDE 1: Title Slide**
+- slideSection: "Title"
+- textOnSlide: Must include:
+  * The lecture title
+  * Scripture reference
+  * "BSF Lecture" as a label
+- visualPrompt: Create a 16:9 slide background with elegant design. Leave space for title text overlay. Use appropriate imagery that reflects the lecture theme.
 
-Return as JSON array:
+**SLIDE 2: Outline Slide**
+- slideSection: "Outline"  
+- textOnSlide: Must include:
+  * "Outline" as header
+  * Roman numeral list of all ${divisionCount} divisions with scripture references
+  * Format: "I. Division Title (Scripture)"
+- visualPrompt: 16:9 slide with clean minimalist design for text readability. Subtle background pattern.
+
+**SLIDES 3-${2 + divisionCount}: Principle Slides (one per division)**
+- slideSection: "Principle" + division number
+- textOnSlide: Must include:
+  * Division title
+  * The principle statement (key spiritual truth)
+- visualPrompt: 16:9 slide with a VISUAL METAPHOR that helps audience remember the principle. The image should symbolize the spiritual truth in a memorable way. Leave clear space for text overlay. Be creative but meaningful.
+
+**SLIDE ${3 + divisionCount}: Application Summary**
+- slideSection: "Application"
+- textOnSlide: Must include all 3 age groups with brief application prompts:
+  * Young Professionals: [brief question]
+  * Fathers/Mid-life: [brief question]  
+  * Elders: [brief question]
+- visualPrompt: 16:9 slide showing community/generations together. Space for three columns of text.
+
+Return JSON array with ${2 + divisionCount + 1} slides:
 [
   {
     "id": "slide_1",
     "slideSection": "Title",
     "slideNumber": 1,
-    "textOnSlide": "...",
-    "visualPrompt": "...",
+    "textOnSlide": "Full text to display on slide...",
+    "visualPrompt": "Detailed 16:9 slide background description. IMPORTANT: Include instructions to leave space for text overlay. 100-150 words.",
     "style": {
-      "mood": "hopeful",
-      "colors": ["#3B82F6", "#10B981"],
-      "composition": "minimalist",
-      "lighting": "warm"
+      "mood": "reflective",
+      "colors": ["#hex1", "#hex2"],
+      "composition": "centered with text space",
+      "lighting": "soft natural"
     },
     "notes": "Design rationale..."
   }
