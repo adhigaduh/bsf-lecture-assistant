@@ -71,6 +71,7 @@ export function Phase3LectureGeneration() {
   const [styleFileSize, setStyleFileSize] = useState('');
   const [isConfirmingStyle, setIsConfirmingStyle] = useState(false);
   const [styleAnalysis, setStyleAnalysis] = useState<any>(null);
+  const [styleConfirmed, setStyleConfirmed] = useState(false);
 
   const acceptAndSaveLecture = async () => {
     if (!phase3.lecture) {
@@ -168,18 +169,110 @@ export function Phase3LectureGeneration() {
       // Normalize each division to have the expected structure
       const normalizedBody = bodyArray.map((div: any, idx: number) => {
         // Handle different API response structures
+        // Applications might be in various locations:
+        // 1. div.application or div.applications
+        // 2. div.application_questions
+        // 3. div.applications_young_professionals, div.applications_fathers_mid_life, div.applications_elders
         const apps = div.application || div.applications || {};
         
         // Find the right keys for each age group (API uses inconsistent naming)
-        const youngKey = Object.keys(apps).find(k => k.includes('young') || k.includes('20'));
-        const middleKey = Object.keys(apps).find(k => k.includes('middle') || k.includes('40'));
-        const olderKey = Object.keys(apps).find(k => k.includes('older') || k.includes('60'));
+        let youngKey = Object.keys(apps).find(k => 
+          k.toLowerCase().includes('young') || 
+          k.toLowerCase().includes('20') ||
+          k.toLowerCase().includes('professional')
+        );
+        let middleKey = Object.keys(apps).find(k => 
+          k.toLowerCase().includes('middle') || 
+          k.toLowerCase().includes('40') ||
+          k.toLowerCase().includes('fath')
+        );
+        let olderKey = Object.keys(apps).find(k => 
+          k.toLowerCase().includes('older') || 
+          k.toLowerCase().includes('60') ||
+          k.toLowerCase().includes('elder')
+        );
         
-        const getQuestion = (key: string | undefined) => {
-          if (!key || !apps[key]) return '';
-          const val = apps[key];
-          if (Array.isArray(val)) return val[0] || '';
-          if (val.questions && Array.isArray(val.questions)) return val.questions[0] || '';
+        // Also check for direct properties on division
+        const divApps = div.applications || div.application_questions || {};
+        const directYoungKey = Object.keys(divApps).find(k => 
+          k.toLowerCase().includes('young') || 
+          k.toLowerCase().includes('20') ||
+          k.toLowerCase().includes('professional')
+        );
+        const directMiddleKey = Object.keys(divApps).find(k => 
+          k.toLowerCase().includes('middle') || 
+          k.toLowerCase().includes('40') ||
+          k.toLowerCase().includes('fath')
+        );
+        const directOlderKey = Object.keys(divApps).find(k => 
+          k.toLowerCase().includes('older') || 
+          k.toLowerCase().includes('60') ||
+          k.toLowerCase().includes('elder')
+        );
+        
+        // Use direct properties if nested apps doesn't have the key
+        if (!youngKey && directYoungKey) youngKey = directYoungKey;
+        if (!middleKey && directMiddleKey) middleKey = directMiddleKey;
+        if (!olderKey && directOlderKey) olderKey = directOlderKey;
+
+        // Also check for application fields directly on the division
+        const getDirectAppQuestion = (field: string): string => {
+          if (div[field]) {
+            const val = div[field];
+            if (Array.isArray(val)) return val[0] || '';
+            if (typeof val === 'string') return val;
+            if (val && val.question) return val.question;
+          }
+          return '';
+        };
+
+        const directYoungQuestion = getDirectAppQuestion('application_young_professionals');
+        const directMiddleQuestion = getDirectAppQuestion('application_fathers_mid_life');
+        const directOlderQuestion = getDirectAppQuestion('application_elders');
+
+        // Fallback to check all division properties for application questions
+        const getAllDivisionApps = (): Record<string, string> => {
+          const result: Record<string, string> = {};
+          if (!div || typeof div !== 'object') return result;
+          
+          for (const [key, val] of Object.entries(div)) {
+            if (key.includes('application') || key.includes('question')) {
+              if (key.includes('young') || key.includes('20')) {
+                result.youngProfessionals = result.youngProfessionals || (Array.isArray(val) ? val[0] : typeof val === 'string' ? val : '');
+              } else if (key.includes('middle') || key.includes('40') || key.includes('fath')) {
+                result.fathersMidLife = result.fathersMidLife || (Array.isArray(val) ? val[0] : typeof val === 'string' ? val : '');
+              } else if (key.includes('older') || key.includes('60') || key.includes('elder')) {
+                result.elders = result.elders || (Array.isArray(val) ? val[0] : typeof val === 'string' ? val : '');
+              }
+            }
+          }
+          return result;
+        };
+
+        const fallbackApps = getAllDivisionApps();
+
+        const getQuestion = (key: string | undefined): string => {
+          if (!key) return '';
+
+          // Try nested apps first
+          if (apps[key]) {
+            const val = apps[key];
+            if (Array.isArray(val)) return val[0] || '';
+            if (typeof val === 'string') return val;
+            if (val.question) return val.question;
+            if (val.questions && Array.isArray(val.questions)) return val.questions[0];
+            if (val.questions && typeof val.questions === 'string') return val.questions;
+          }
+
+          // Try direct division properties
+          if (divApps[key]) {
+            const val = divApps[key];
+            if (Array.isArray(val)) return val[0] || '';
+            if (typeof val === 'string') return val;
+            if (val.question) return val.question;
+            if (val.questions && Array.isArray(val.questions)) return val.questions[0];
+          }
+
           return '';
         };
         
@@ -191,17 +284,17 @@ export function Phase3LectureGeneration() {
           principle: div.principle_statement?.content || div.principle_statement?.text || div.principle || div.principle_statement || '',
           applications: {
             youngProfessionals: {
-              question: getQuestion(youngKey),
+              question: directYoungQuestion || getQuestion(youngKey),
               discussionPoints: [],
               reflectionTime: 5,
             },
             fathersMidLife: {
-              question: getQuestion(middleKey),
+              question: directMiddleQuestion || getQuestion(middleKey),
               discussionPoints: [],
               reflectionTime: 5,
             },
             elders: {
-              question: getQuestion(olderKey),
+              question: directOlderQuestion || getQuestion(olderKey),
               discussionPoints: [],
               reflectionTime: 5,
             },
@@ -391,6 +484,7 @@ export function Phase3LectureGeneration() {
     
     setTimeout(() => {
       setIsConfirmingStyle(false);
+      setStyleConfirmed(true);
     }, 1500);
   };
 
@@ -514,18 +608,32 @@ export function Phase3LectureGeneration() {
 
                     <Button
                       onClick={confirmStyleMarkdown}
-                      disabled={isConfirmingStyle}
-                      className="w-full"
+                      disabled={isConfirmingStyle || styleConfirmed}
+                      className={`w-full ${styleConfirmed ? 'bg-green-600 hover:bg-green-700' : ''}`}
                     >
                       {isConfirmingStyle ? (
                         <>
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           Confirming Style...
                         </>
+                      ) : styleConfirmed ? (
+                        <>
+                          <Check className="h-4 w-4 mr-2" />
+                          Style Captured
+                        </>
                       ) : (
                         'Use This Style'
                       )}
                     </Button>
+
+                    {styleConfirmed && (
+                      <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <p className="text-sm text-green-700 flex items-center gap-2">
+                          <Check className="h-4 w-4" />
+                          Style captured successfully and will be applied to the generated lecture
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
