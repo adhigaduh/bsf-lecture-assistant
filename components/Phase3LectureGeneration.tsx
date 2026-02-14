@@ -47,13 +47,14 @@ function Timer({ isRunning, completedTime, onComplete }: { isRunning: boolean; c
 }
 
 export function Phase3LectureGeneration() {
-  const { 
-    uploadedText, 
-    phase1, 
-    phase2, 
-    phase3, 
+  const {
+    uploadedText,
+    phase1,
+    phase2,
+    phase3,
     phase4,
-    setLecture, 
+    settings,
+    setLecture,
     setWorshipSongs,
     setPhase3Generating,
     nextPhase
@@ -72,6 +73,15 @@ export function Phase3LectureGeneration() {
   const [isConfirmingStyle, setIsConfirmingStyle] = useState(false);
   const [styleAnalysis, setStyleAnalysis] = useState<any>(null);
   const [styleConfirmed, setStyleConfirmed] = useState(false);
+
+  // Application generation progress tracking
+  const [isGeneratingApplications, setIsGeneratingApplications] = useState(false);
+  const [applicationProgress, setApplicationProgress] = useState<{
+    currentIndex: number;
+    total: number;
+    currentDivision: string;
+    currentAgeGroup: string;
+  } | null>(null);
 
   const acceptAndSaveLecture = async () => {
     if (!phase3.lecture) {
@@ -348,19 +358,24 @@ export function Phase3LectureGeneration() {
         metadata: lecture.metadata || {},
       };
       
-      console.log('Normalized conclusion:', { 
-        storyResolution: storyResolution.substring(0, 50), 
-        callToAction: '...', 
-        closingPrayer: closingPrayer.substring(0, 50) 
+      console.log('Normalized conclusion:', {
+        storyResolution: storyResolution.substring(0, 50),
+        callToAction: '...',
+        closingPrayer: closingPrayer.substring(0, 50)
       });
-      
+
       console.log('Normalized lecture:', JSON.stringify(normalizedLecture).substring(0, 500));
-      
+
+      // First set the lecture
       setLecture(normalizedLecture);
       setWorshipSongs(result.data.worshipSongs || []);
+
+      // Generate applications for all divisions
+      await generateApplications(normalizedLecture);
+
       setPhase3Generating(false, 100);
       setGenerationTime(Date.now() - startTime);
-      
+
       // Wait for state to settle and persist
       await new Promise(resolve => setTimeout(resolve, 1000));
     } catch (error) {
@@ -481,11 +496,95 @@ export function Phase3LectureGeneration() {
 
   const confirmStyleMarkdown = () => {
     setIsConfirmingStyle(true);
-    
+
     setTimeout(() => {
       setIsConfirmingStyle(false);
       setStyleConfirmed(true);
     }, 1500);
+  };
+
+  const generateApplications = async (lectureData: any) => {
+    if (!lectureData?.body || !Array.isArray(lectureData.body)) {
+      return lectureData;
+    }
+
+    setIsGeneratingApplications(true);
+
+    try {
+      const ageGroups = ['youngProfessionals', 'fathersMidLife', 'elders'] as const;
+      const totalApps = lectureData.body.length * ageGroups.length;
+      let completedApps = 0;
+
+      const newBody = await Promise.all(
+        lectureData.body.map(async (division: any, divisionIndex: number) => {
+          const newDivision = { ...division };
+
+          for (const ageGroup of ageGroups) {
+            completedApps++;
+            setApplicationProgress({
+              currentIndex: completedApps,
+              total: totalApps,
+              currentDivision: division.title || `Division ${divisionIndex + 1}`,
+              currentAgeGroup: ageGroup
+                .replace('Professionals', ' (Young Professionals)')
+                .replace('MidLife', ' (Fathers/Mid-life)')
+            });
+
+            try {
+              const response = await fetch('/api/generate/applications', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  division,
+                  ageGroup,
+                  context: {
+                    phase1Selection: phase1.selected,
+                    settings: settings,
+                  },
+                }),
+              });
+
+              if (!response.ok) {
+                console.error(`Failed to generate app for ${ageGroup}`);
+                continue;
+              }
+
+              const result = await response.json();
+              if (result.success && result.question) {
+                newDivision.applications = newDivision.applications || {
+                  youngProfessionals: { question: '', discussionPoints: [], reflectionTime: 5 },
+                  fathersMidLife: { question: '', discussionPoints: [], reflectionTime: 5 },
+                  elders: { question: '', discussionPoints: [], reflectionTime: 5 },
+                };
+                newDivision.applications[ageGroup] = {
+                  question: result.question,
+                  discussionPoints: [],
+                  reflectionTime: 5,
+                };
+              }
+            } catch (error) {
+              console.error(`Error generating application for ${ageGroup}:`, error);
+            }
+
+            // Add a small delay between requests
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+
+          return newDivision;
+        })
+      );
+
+      const updatedLecture = {
+        ...lectureData,
+        body: newBody,
+      };
+
+      setLecture(updatedLecture);
+      return updatedLecture;
+    } finally {
+      setIsGeneratingApplications(false);
+      setApplicationProgress(null);
+    }
   };
 
   const canGenerate = phase1.selected && phase2.selected;
@@ -660,8 +759,31 @@ export function Phase3LectureGeneration() {
                   <Clock className="h-4 w-4 text-green-600" />
                   <span className="text-sm text-gray-600">Generated in {Math.round(generationTime / 1000)}s</span>
                 </div>
+               )}
+
+              {isGeneratingApplications && applicationProgress && (
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-blue-900">Generating Application Questions</p>
+                      <p className="text-xs text-blue-700">
+                        {applicationProgress.currentDivision} - {applicationProgress.currentAgeGroup}
+                      </p>
+                      <div className="mt-2 w-full bg-blue-200 rounded-full h-2">
+                        <div
+                          className="bg-blue-600 h-2 rounded-full transition-all"
+                          style={{ width: `${(applicationProgress.currentIndex / applicationProgress.total) * 100}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-blue-600 mt-1">
+                        {applicationProgress.currentIndex} / {applicationProgress.total} applications generated
+                      </p>
+                    </div>
+                  </div>
+                </div>
               )}
-              
+
               <div className="mt-4 text-sm text-gray-600 space-y-1">
                 <p><strong>Selected Aim:</strong> {phase1.selected?.aim}</p>
                 <p><strong>Selected Story:</strong> {phase2.selected?.title}</p>
@@ -878,46 +1000,35 @@ export function Phase3LectureGeneration() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="outline" className="mt-6">
-              {phase3.lecture ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Lecture Outline</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-2">
-                          <Badge className="bg-blue-600">Introduction</Badge>
-                          <span className="text-sm">{phase3.lecture.title || ''}</span>
-                        </div>
-                        
-                        {phase3.lecture.body && (
-                          (Array.isArray(phase3.lecture.body) 
-                            ? phase3.lecture.body 
-                            : Object.values(phase3.lecture.body || {}).filter((d: any) => d && d.title)
-                          ).map((division: any, index: number) => (
-                            <div key={division.id || `div-${index}`} className="flex items-center gap-2">
-                              <Badge variant="outline">{index + 1}</Badge>
-                              <span className="text-sm">{division.title || ''}</span>
-                            </div>
-                          ))
-                        )}
-                        
-                        <div className="flex items-center gap-2">
-                          <Badge className="bg-green-600">Conclusion</Badge>
-                        <span className="text-sm">Resolution & Prayer</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card>
-                  <CardContent className="py-8 text-center text-gray-500">
-                    <p>Outline not available. Generate a lecture first.</p>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
+             <TabsContent value="outline" className="mt-6">
+               {phase3.lecture ? (
+                 <Card>
+                   <CardHeader>
+                     <CardTitle>Lecture Outline</CardTitle>
+                   </CardHeader>
+                   <CardContent>
+                       <div className="space-y-4">
+                         <div className="flex items-center gap-2">
+                           <Badge className="bg-blue-600">Introduction</Badge>
+                           <span className="text-sm">{phase3.lecture.title || ''}</span>
+                         </div>
+
+                          {phase3.lecture.body && (
+                             (Array.isArray(phase3.lecture.body)
+                               ? phase3.lecture.body
+                               : Object.values(phase3.lecture.body || {}).filter((d: any) => d && d.title)
+                             ).map((division: any, index: number) => (
+                               <div key={division.id || `div-${index}`} className="flex items-center gap-2">
+                                 <Badge variant="outline">{index + 1}</Badge>
+                                 <span className="text-sm">{division.title || ''}</span>
+                               </div>
+                             ))
+                           )}
+                       </div>
+                     </CardContent>
+                   </Card>
+                 ) : null}
+               </TabsContent>
           </Tabs>
 
           <div className="flex justify-between items-center mt-6">

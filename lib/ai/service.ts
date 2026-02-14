@@ -157,6 +157,20 @@ export class AIService {
     return this.parseWorshipSongResponse(response);
   }
 
+  async generateApplicationQuestion(options: {
+    division: any;
+    ageGroup: 'youngProfessionals' | 'fathersMidLife' | 'elders';
+    context?: any;
+  }): Promise<string> {
+    if (!this.provider) {
+      throw new Error('No AI provider configured.');
+    }
+    const { division, ageGroup, context } = options;
+    const prompt = this.buildApplicationPrompt(division, ageGroup, context);
+    const response = await this.callAI(prompt, 1000);
+    return this.parseApplicationResponse(response);
+  }
+
   private buildPhase1Prompt(options: GenerationOptions): string {
     const optionsCount = options.context?.optionsCount || 3;
     const language = options.context?.settings?.language || 'en';
@@ -391,6 +405,88 @@ Format as JSON:
   "duration": 4
 }
     `.trim();
+  }
+
+  private buildApplicationPrompt(
+    division: any,
+    ageGroup: 'youngProfessionals' | 'fathersMidLife' | 'elders',
+    context?: any
+  ): string {
+    const language = context?.settings?.language || 'en';
+    const languageInstruction = this.getLanguageInstruction(language);
+
+    const contextMap = {
+      youngProfessionals: {
+        label: 'Young Professionals (20s-30s)',
+        focus: 'career decisions, relationships, faith in workplace, building integrity',
+        examples: 'workplace ethics, dating/courtship, investing, career vs calling, balancing ambition and faith',
+      },
+      fathersMidLife: {
+        label: 'Fathers / Mid-life (40s-50s)',
+        focus: 'parenting teen/adult children, marriage, providing, spiritual leadership at home',
+        examples: 'empty nest, helping children find their path, marriage re-engagement, mentoring next generation',
+      },
+      elders: {
+        label: 'Elders (60s+)',
+        focus: 'legacy, grandchildren, finishing well, mentoring, faith after loss',
+        examples: 'health transitions, sharing wisdom, spiritual inheritance, contentment in later years',
+      },
+    };
+
+    const ageGroupInfo = contextMap[ageGroup];
+    const lectureContext = context?.phase1Selection || {};
+
+    return `
+Generate a reflective application question for this biblical passage.
+
+${languageInstruction}
+
+DIVISION:
+Title: ${division.title}
+Scripture: ${division.scriptureRange}
+Principle: ${division.principle_text || division.principle}
+
+OVERALL LECTURE AIM:
+${lectureContext.aim || 'Not specified'}
+
+TARGET AUDIENCE:
+${ageGroupInfo.label}
+
+Life Context Focus:
+They are dealing with ${ageGroupInfo.focus}
+
+Examples of relevant life situations:
+${ageGroupInfo.examples}
+
+INSTRUCTIONS:
+1. Create ONE open-ended application question
+2. The question should ${ageGroupInfo.focus}
+3. Make it personal and reflective
+4. Help them connect the biblical principle to their daily life
+5. The question should prompt personal reflection, not just factual recall
+
+Return ONLY the question text, formatted as a complete sentence. Do not include any introduction, explanation, or JSON formatting. Just the question.
+
+Example format:
+"In your current situation at work, how might this principle about God's provision change the way you approach your next difficult decision?"
+    `.trim();
+  }
+
+  private parseApplicationResponse(response: string): string {
+    // Extract just the question text, stripping any formatting
+    let extracted = response.trim();
+
+    // Remove common prefixes
+    extracted = extracted.replace(/^(Question:|Application:|Reflection:)\s*/i, '');
+
+    // Remove any JSON formatting if present
+    extracted = extracted.replace(/^{|"question":\s*"|"|\s*}$/g, '');
+
+    // Remove markdown formatting
+    extracted = extracted.replace(/^["']|["']$/g, '');
+    extracted = extracted.replace(/\*\*/g, '');
+
+    return extracted;
   }
 
   private async callAI(prompt: string, maxTokens: number): Promise<string> {
