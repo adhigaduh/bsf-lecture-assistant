@@ -6,7 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Upload, FileText, X, Loader2, File, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, FileText, X, Loader2, File, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+
+interface UploadedFile {
+  id: string;
+  name: string;
+  text: string;
+  timestamp: number;
+}
 
 export function FileUploader() {
   const { uploadedText, fileName, setUploadedText, clearUploadedText } = useWorkflowStore();
@@ -17,16 +25,18 @@ export function FileUploader() {
   const [statusType, setStatusType] = useState<'success' | 'error' | 'info'>('info');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Multiple files support
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
 
   // Show warning if text was loaded from localStorage
   const isResumed = uploadedText.length > 0 && manualText.length === 0 && statusMessage === null;
 
-  // Clear manualText when starting new upload
+  // Handle single file upload and add to list
   const handleFileUpload = useCallback(async (file: File) => {
     setIsUploading(true);
     setStatusMessage(null);
-    setManualText(''); // Clear previous text
-    setUploadedFileName(file.name);
     
     const formData = new FormData();
     formData.append('file', file);
@@ -46,10 +56,23 @@ export function FileUploader() {
       
       if (result.success && result.data) {
         const text = result.data.extractedText;
-        setStatusMessage('Text extracted successfully!');
-        setStatusType('success');
+        const newFile: UploadedFile = {
+          id: Date.now().toString(),
+          name: result.data.fileName || file.name,
+          text: text,
+          timestamp: Date.now(),
+        };
+        
+        // Add to uploaded files list
+        setUploadedFiles(prev => [...prev, newFile]);
+        
+        // Select this file and populate text area
+        setSelectedFileId(newFile.id);
         setManualText(text);
-        setUploadedFileName(result.data.fileName);
+        setUploadedFileName(newFile.name);
+        
+        setStatusMessage(`"${newFile.name}" uploaded successfully!`);
+        setStatusType('success');
       }
     } catch (error) {
       console.error('Upload error:', error);
@@ -60,14 +83,40 @@ export function FileUploader() {
     }
   }, []);
 
+  // Handle multiple file uploads
+  const handleMultipleFileUpload = useCallback(async (files: FileList) => {
+    for (let i = 0; i < files.length; i++) {
+      await handleFileUpload(files[i]);
+    }
+  }, [handleFileUpload]);
+
+  // Select a file from the list
+  const selectFile = (file: UploadedFile) => {
+    setSelectedFileId(file.id);
+    setManualText(file.text);
+    setUploadedFileName(file.name);
+    setStatusMessage(`Selected: "${file.name}"`);
+    setStatusType('info');
+  };
+
+  // Remove a file from the list
+  const removeFile = (fileId: string) => {
+    setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
+    if (selectedFileId === fileId) {
+      setSelectedFileId(null);
+      setManualText('');
+      setUploadedFileName(null);
+    }
+  };
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragActive(false);
     
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileUpload(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleMultipleFileUpload(e.dataTransfer.files);
     }
-  }, [handleFileUpload]);
+  }, [handleMultipleFileUpload]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -93,14 +142,16 @@ export function FileUploader() {
     setManualText('');
     setStatusMessage(null);
     setUploadedFileName(null);
+    setUploadedFiles([]);
+    setSelectedFileId(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFileUpload(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      handleMultipleFileUpload(e.target.files);
     }
   };
 
@@ -146,15 +197,16 @@ export function FileUploader() {
                   accept=".pdf,.docx,.txt"
                   className="hidden"
                   onChange={handleFileSelect}
+                  multiple
                 />
                 
                 <Button size="lg" onClick={triggerFileInput} type="button">
                   <Upload className="h-4 w-4 mr-2" />
-                  Choose File
+                  Choose Files
                 </Button>
                 
                 <p className="text-xs text-gray-500 mt-4">
-                  Supported formats: PDF, DOCX, TXT
+                  Supported formats: PDF, DOCX, TXT (select multiple files)
                 </p>
                 
                 {statusMessage && (
@@ -176,6 +228,62 @@ export function FileUploader() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Uploaded Files List */}
+      {uploadedFiles.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Uploaded Files ({uploadedFiles.length})</CardTitle>
+            <CardDescription>
+              Click on a file to select it for processing
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {uploadedFiles.map((file) => (
+                <div
+                  key={file.id}
+                  onClick={() => selectFile(file)}
+                  className={`p-3 rounded-lg border cursor-pointer transition-all flex items-center justify-between ${
+                    selectedFileId === file.id
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-5 w-5 text-gray-500" />
+                    <div>
+                      <p className="font-medium text-sm">{file.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {file.text.length.toLocaleString()} characters
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {selectedFileId === file.id && (
+                      <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Selected
+                      </Badge>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFile(file.id);
+                      }}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
