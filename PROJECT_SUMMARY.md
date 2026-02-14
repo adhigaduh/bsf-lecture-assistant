@@ -1,15 +1,19 @@
 # BSF Lecture Assistant - Project Summary
 
+## Current Status (Last Updated: Feb 14, 2026)
+
 ## Overview
-Agentic web application for Indonesian adult men to generate BSF (Bible Study Fellowship) lecture materials. 4-phase workflow: Upload → Strategy → Narrative → Lecture → Visuals.
+Agentic web application for Indonesian adult men to generate BSF (Bible Study Fellowship) lecture materials. 5-phase workflow: Upload → Strategy → Narrative → Lecture → Visuals.
 
 ## Tech Stack
 - **Framework**: Next.js 16.1.6 with App Router
 - **Language**: TypeScript
-- **State Management**: Zustand with persistence
-- **UI Components**: Radix UI + Tailwind CSS
-- **AI**: Anthropic Claude Sonnet 4.5 (configured via env vars)
+- **State Management**: Zustand with persistence (localStorage)
+- **UI Components**: Radix UI + Tailwind CSS + shadcn/ui
+- **AI**: Anthropic Claude Sonnet (phase1-3), Google Gemini (images)
 - **PDF Processing**: pdfjs-dist
+- **Authentication**: Simple email/password with auto-registration
+- **Documents**: File-based storage in `documents/{userId}/`
 
 ## Working Directory
 ```
@@ -23,93 +27,259 @@ npm run build  # Production build
 npm run lint   # Run ESLint
 ```
 
+## Environment Variables (.env.local)
+```
+ANTHROPIC_API_KEY=your_anthropic_key
+GOOGLE_API_KEY=your_google_key_for_images
+```
+
 ## Project Structure
 
-### Core Files
-- `app/page.tsx` - Main application page with phase navigation
-- `lib/workflow-store.ts` - Zustand store with phase data and persistence
-- `types/workflow.ts` - TypeScript type definitions
+### Core Application Files
+- `app/page.tsx` - Main page with 5-phase navigation
+- `app/login/page.tsx` - Authentication page
+- `lib/workflow-store.ts` - Zustand store (1,000+ lines)
+- `types/workflow.ts` - TypeScript interfaces
+- `lib/ai/service.ts` - AI service layer with prompts
 
 ### Workflow Phases (Components)
-1. `components/FileUploader.tsx` - Upload PDF/DOCX/txt
-2. `components/Phase1StrategicFoundation.tsx` - Generate Aim & Divisional Principles
-3. `components/Phase2NarrativeArc.tsx` - Generate Bookend Story options
-4. `components/Phase3LectureGeneration.tsx` - Generate full lecture manuscript (~3500 words)
-5. `components/Phase4VisualAssets.tsx` - Generate AI image prompts for slides
+
+#### Phase 1: File Upload
+- **Component**: `components/FileUploader.tsx`
+- **Features**: PDF, DOCX, TXT upload, drag-and-drop, manual text entry
+- **API**: `app/api/upload/route.ts`
+- **Status**: ✅ Working
+
+#### Phase 2: Strategic Foundation
+- **Component**: `components/Phase1StrategicFoundation.tsx`
+- **Features**: Generate 3 options, select with edit mode, timer
+- **API**: `app/api/generate/phase1/route.ts`
+- **Edit Mode**: Can edit aim, divisions, principles before accepting
+- **Cancel Button**: ✅ Added - stops generation via AbortController
+- **Status**: ✅ Working
+
+#### Phase 3: Narrative Arc
+- **Component**: `components/Phase2NarrativeArc.tsx`
+- **Features**: Generate 3 bookend stories, select with edit mode, timer
+- **API**: `app/api/generate/phase2/route.ts`
+- **Edit Mode**: Can edit title, opening, cliffhanger, resolution, characters, setting
+- **Cancel Button**: ✅ Added - stops generation via AbortController
+- **Show More**: Displays full text of all story elements
+- **Status**: ✅ Working
+
+#### Phase 4: Lecture Generation
+- **Component**: `components/Phase3LectureGeneration.tsx`
+- **Features**: Generate full lecture (~3500 words), tabs for lecture/worship/outline
+- **API**: `app/api/generate/phase3/route.ts`
+  - Also calls `app/api/generate/applications/route.ts` for per-division applications
+- **Style Upload**: Can upload markdown style file for lecture tone
+- **Edit Mode**: ✅ Added - can edit entire lecture (title, intro, divisions, conclusion)
+- **Cancel Button**: ✅ Added - stops generation via AbortController
+- **Auto-save**: Saves to document on each phase completion
+- **Button Flow**: 
+  - Before save: "Accept & Save Lecture"
+  - After save: "Proceed to Visual Assets"
+- **Status**: ✅ Working
+
+#### Phase 5: Visual Assets
+- **Component**: `components/Phase4VisualAssets.tsx`
+- **Features**: Generate AI image prompts for presentation slides
+- **API**: `app/api/generate/phase4/route.ts` (prompts only)
+- **Image Generation**: `app/api/generate-image/route.ts` (Google Gemini)
+- **Slide Structure** (13 slides for 3 divisions):
+  1. Title (lecture title, scripture, "BSF Lecture")
+  2. Outline (Roman numerals I, II, III)
+  3. Principle 1 + Memory 1 + Application 1
+  4. Principle 2 + Memory 2 + Application 2
+  5. Principle 3 + Memory 3 + Application 3
+  6. Discussion
+  7. Summary
+- **Design Elements in Prompts**: colors, Rule of Thirds, mood, lighting
+- **Cancel Button**: ✅ Added - stops generation via AbortController
+- **Regenerate**: ✅ Added - can regenerate prompts without losing lecture
+- **Image Generation**: Currently text-only prompts (API issues with Gemini images)
+- **Status**: ⚠️ Prompts work, image generation unreliable
+
+### Document System
+- **Location**: `documents/{userId}/{documentId}.json`
+- **Features**: 
+  - Auto-create on text upload
+  - Auto-save after each phase selection
+  - Load/resume from any phase
+  - Delete with confirmation
+- **Panel**: Right sidebar with document cards
+- **Status**: ✅ Working
 
 ### Supporting Components
-- `components/WorkflowStatus.tsx` - Progress bar + "Resume Your Work" card
-- `components/ProgressBar.tsx` - Phase navigation progress indicator
-- `components/SettingsPanel.tsx` - Language toggle (EN/ID), AI model selection
+- `components/WorkflowStatus.tsx` - Resume work card with progress
+- `components/ProgressBar.tsx` - Phase progress indicator
+- `components/SettingsPanel.tsx` - Language (EN/ID), AI settings
+- `components/DocumentPanel.tsx` - Document management sidebar
 
-### API Routes
-- `app/api/generate/phase1/route.ts` - Strategy generation
-- `app/api/generate/phase2/route.ts` - Narrative generation
-- `app/api/generate/phase3/route.ts` - Lecture generation
-- `app/api/generate/phase4/route.ts` - Visual assets generation
-- `app/api/upload/route.ts` - File upload & text extraction
+## Recent Features & Fixes (Feb 14, 2026)
 
-### Configuration
-- `config/config.yaml` - AI models, language instructions
-- `lib/config.server.ts` - Config loading with env var substitution (e.g., `${ANTHROPIC_API_KEY}`)
+### Cancel/Stop Buttons ✅
+All phases now have Cancel buttons during generation:
+- Phase 1: "Cancel" (red button)
+- Phase 2: "Cancel" (red button)
+- Phase 3: "Cancel" (red button)
+- Phase 4: "Cancel" (red button)
+- Uses AbortController to properly cancel fetch requests
+- Prevents stuck "Generating..." states
 
-## Recent Fixes (Feb 13, 2026)
+### Edit Modes ✅
+- Phase 1: Edit aim, divisions, principles before accepting
+- Phase 2: Edit story title, opening, cliffhanger, resolution, characters, setting
+- Phase 3: Edit entire lecture (title, intro, all divisions, conclusion)
+- Flow: Select → Edit → Accept → Proceed
 
-### Phase Navigation Bug
-Fixed `canProceedToPhase()` in `workflow-store.ts`:
-- Phase 2 checks `phase1.selected` (was incorrectly checking `phase2.selected`)
-- Extended `WorkflowPhase` type to include `5`
+### Application Questions ✅
+- Generated via separate AI calls after lecture
+- One per division per age group (9 total)
+- Progress bar shows "Generating Application Questions"
+- Each division gets custom questions for Young Professionals, Fathers/Mid-life, Elders
 
-### Timers Implementation
-All phases now show:
-- Live timer during generation ("Analyzing Text...", "Generating Stories...", etc.)
-- Permanent "Generated in Xs" display after completion
+### Navigation Fixes ✅
+- Fixed `nextPhase()` - changed `current < 4` to `current < 5`
+- Can now navigate from Phase 4 to Phase 5
+- Footer Next button works correctly
 
-### WorkflowStatus Component
-New component showing:
-- Overall progress percentage (20% per completed phase)
-- Phase status icons (✓ complete, ⟳ generating, ⚠ incomplete)
-- "Continue" button to jump to incomplete phase
-- "Start New Lecture" to clear all data
+### Visual Assets Structure ✅
+- 13 slides for 3-division lecture
+- Per-division memory slides with mnemonics/acronyms
+- Design elements: colors, Rule of Thirds, mood, lighting
+- Discussion and Summary slides at end
 
-### Build Fixes
-- Fixed duplicate Timer component code in Phase1StrategicFoundation.tsx and Phase3LectureGeneration.tsx
-- Added missing function declaration in Phase1StrategicFoundation.tsx
-- Fixed React setState in useEffect warnings
-- Fixed TypeScript errors in ai/service.ts catch clauses
-- Added WorshipSong type import in phase3 route
+### Image Generation Issues ⚠️
+- Gemini API doesn't reliably generate images
+- Currently generates prompts only
+- Aspect ratio requested in text (not API parameter)
+- May need fallback to placeholder images or different API
 
-## Current Issues
+## Known Issues
 
-### Lint Warnings (Non-Blocking)
-- Unused imports in various files
-- Image alt props missing in Phase4VisualAssets.tsx
-- pdf.worker.mjs has various lint errors (third-party, ignored)
+### High Priority
+1. **Image Generation Unreliable**: Gemini API often fails to generate actual images
+   - Workaround: Generates text prompts only
+   - Potential fix: Use placeholder images or different API
 
-### ESLint Errors in Third-Party Files
-These are in files that should be excluded or configured:
-- `public/pdf/pdf.worker.mjs` - require() imports, this aliasing
-- `test-all-phases.js` - require() style imports
+2. **Application Questions Timeout**: Sometimes takes >3 minutes
+   - Current: 3-minute timeout
+   - May need to increase or optimize
 
-## Environment Variables
-Create `.env.local` with:
+### Medium Priority
+3. **Style Analysis**: Limited detection of tone/style from uploaded markdown
+   - Could enhance with more sophisticated parsing
+
+4. **Lecture Length**: Sometimes exceeds 4000 words
+   - Token limit is 15000 but actual output varies
+   - Could add trimming or summarization
+
+### Low Priority
+5. **ESLint Warnings**: Unused imports, missing alt props
+6. **Type Warnings**: Some strict TypeScript errors in edge cases
+
+## Testing Checklist
+
+### Full Workflow Test
+1. ✅ Login/Register
+2. ✅ Upload text file
+3. ✅ Generate Phase 1 options
+4. ✅ Edit Phase 1 selection
+5. ✅ Accept and proceed to Phase 2
+6. ✅ Generate Phase 2 stories
+7. ✅ Edit Phase 2 selection  
+8. ✅ Accept and proceed to Phase 3
+9. ✅ Generate lecture
+10. ✅ Edit lecture
+11. ✅ Accept & Save
+12. ✅ Proceed to Phase 4
+13. ✅ Generate visual prompts
+14. ✅ (Optional) Try image generation
+
+### Cancel Button Test
+1. Start generation in any phase
+2. Click Cancel button
+3. Verify loading stops immediately
+4. Verify can restart generation
+
+### Edit Mode Test
+1. Generate options in Phase 1 or 2
+2. Select an option
+3. Click Edit button (or it opens automatically)
+4. Modify some text
+5. Click Accept Changes
+6. Verify changes saved
+7. Click Cancel to discard changes
+
+### Document System Test
+1. Upload text (auto-creates document)
+2. Complete phases
+3. Check documents panel shows current doc
+4. Create second document
+5. Switch between documents
+6. Delete a document
+
+## Next Development Priorities
+
+1. **Fix Image Generation**: 
+   - Consider OpenAI DALL-E
+   - Or use placeholder images
+   - Or pre-made slide templates
+
+2. **Enhance Application Questions**:
+   - Better integration into lecture flow
+   - More contextual to each division
+
+3. **Export Features**:
+   - Export lecture as formatted document
+   - Export slides as presentation (PPTX)
+   - Export images as zip
+
+4. **UI Polish**:
+   - Better loading states
+   - Error boundaries
+   - Mobile responsiveness
+
+5. **Testing**:
+   - Playwright E2E tests
+   - Unit tests for parsers
+
+## Git Repository
+```bash
+# Remote
+origin: https://github.com/adhigaduh/bsf-lecture-assistant.git
+branch: main
+
+# Recent commits
+- Add design elements to visual prompts
+- Remove unsupported aspectRatio parameter
+- Add Cancel buttons and Lecture Edit feature
+- Add Regenerate button and enforce mandatory slides
+- Fix Phase 4 regenerate button and improve image aspect ratio
 ```
-ANTHROPIC_API_KEY=your-key
-```
 
-Config supports `${VAR:-default}` format for model IDs.
+## Server Status
+- Dev server: `npm run dev` → http://localhost:3000
+- Build: `npm run build` → ✅ Passing
+- Last restart: Feb 14, 2026
 
-## Known Quirks
-- "Use This Text" button state depends on extractedText being set in FileUploader
-- Resume detection checks: uploadedText, phase1.options, phase2.options, phase3.lecture, phase4.visualAssets
-- Navigation Next button disabled until phase requirements met
-- Generation times: Phase1 ~30-60s, Phase2 ~30-60s, Phase3 ~60-120s, Phase4 ~15-30s
+---
 
-## Testing Notes
-To test complete workflow:
-1. Upload PDF/DOCX/txt
-2. Click "Use This Text" → Next enabled
-3. Generate Strategy → Select Option → Next enabled
-4. Generate Narrative → Select Story → Next enabled
-5. Generate Lecture → Done
-6. Generate Visual Assets → Done
+## For Next Session
+
+If you're picking up this project:
+
+1. **Start server**: `npm run dev`
+2. **Check status**: All phases should be functional
+3. **Priority fix**: Image generation in Phase 4 (currently prompts only)
+4. **Test workflow**: Run through all 5 phases to verify
+5. **Check logs**: `tail -f server.log` for any errors
+
+**Key files to understand:**
+- `lib/workflow-store.ts` - All state management
+- `lib/ai/service.ts` - All AI prompts
+- `components/Phase3LectureGeneration.tsx` - Most complex component
+- `app/api/generate/phase4/route.ts` - Visual prompts generation
+
+**Current blocker**: Image generation API unreliable. Everything else works.
