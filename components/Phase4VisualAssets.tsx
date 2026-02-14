@@ -634,12 +634,11 @@ Create a beautiful 16:9 title slide background. Leave space for text overlay.`;
                   <CardContent>
                     <div className="space-y-4">
                       {previewImage ? (
-                        <div className="relative">
+                        <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
                           <img 
                             src={previewImage} 
                             alt="Title slide preview" 
-                            className="w-full rounded-lg shadow-lg"
-                            style={{ aspectRatio: '16/9' }}
+                            className="w-full h-full object-cover rounded-lg shadow-lg"
                           />
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                             <div className="text-center p-8">
