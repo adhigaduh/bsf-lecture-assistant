@@ -5,7 +5,9 @@ import { useWorkflowStore } from '@/lib/workflow-store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Check, Info, Clock, AlertCircle } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Loader2, Check, Info, Clock, AlertCircle, Edit3, X, Save } from 'lucide-react';
 import { StrategicFoundation } from '@/types/workflow';
 
 function Timer({ isRunning, completedTime, onComplete }: { isRunning: boolean; completedTime?: number; onComplete?: () => void }) {
@@ -63,6 +65,10 @@ export function Phase1StrategicFoundation() {
   const [showDetails, setShowDetails] = useState<string | null>(null);
   const [generationTime, setGenerationTime] = useState<number>(0);
 
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedOption, setEditedOption] = useState<StrategicFoundation | null>(null);
+
   const generateOptions = async () => {
     if (!uploadedText) return;
     
@@ -106,7 +112,39 @@ export function Phase1StrategicFoundation() {
   };
 
   const selectOption = (option: StrategicFoundation) => {
-    selectPhase1Option(option);
+    // Enter edit mode with the selected option
+    setEditedOption(JSON.parse(JSON.stringify(option))); // Deep copy
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setEditedOption(null);
+  };
+
+  const acceptEdit = () => {
+    if (editedOption) {
+      selectPhase1Option(editedOption);
+      setIsEditing(false);
+      setEditedOption(null);
+    }
+  };
+
+  const updateAim = (aim: string) => {
+    if (editedOption) {
+      setEditedOption({ ...editedOption, aim });
+    }
+  };
+
+  const updateDivision = (divisionId: string, field: string, value: string) => {
+    if (editedOption) {
+      setEditedOption({
+        ...editedOption,
+        divisions: editedOption.divisions.map(d =>
+          d.id === divisionId ? { ...d, [field]: value } : d
+        ),
+      });
+    }
   };
 
   const getConfidenceColor = (score: number) => {
@@ -245,19 +283,124 @@ export function Phase1StrategicFoundation() {
                   </CardContent>
                 </Card>
               ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+             </div>
+           )}
+         </CardContent>
+       </Card>
 
-      {phase1.selected && (
+      {/* Edit Mode - Show after selecting an option */}
+      {isEditing && editedOption && (
+        <Card className="border-2 border-blue-300">
+          <CardHeader className="bg-blue-50">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Edit3 className="h-5 w-5 text-blue-600" />
+                Edit Strategic Foundation
+              </CardTitle>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={cancelEdit}>
+                  <X className="h-4 w-4 mr-1" />
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={acceptEdit} className="bg-green-600 hover:bg-green-700">
+                  <Save className="h-4 w-4 mr-1" />
+                  Accept & Continue
+                </Button>
+              </div>
+            </div>
+            <CardDescription>
+              Review and edit the aim and divisions before proceeding to Phase 2
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6 space-y-6">
+            {/* Aim */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Overall Aim
+              </label>
+              <Textarea
+                value={editedOption.aim}
+                onChange={(e) => updateAim(e.target.value)}
+                rows={3}
+                className="w-full"
+                placeholder="Enter the overall aim of the lecture..."
+              />
+            </div>
+
+            {/* Divisions */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-4">
+                Divisions ({editedOption.divisions.length} sections)
+              </h4>
+              <div className="space-y-4">
+                {editedOption.divisions.map((division, index) => (
+                  <Card key={division.id} className="bg-gray-50">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
+                        <Badge variant="outline">Division {index + 1}</Badge>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                          Title
+                        </label>
+                        <Input
+                          value={division.title}
+                          onChange={(e) => updateDivision(division.id, 'title', e.target.value)}
+                          placeholder="Division title..."
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                          Scripture Range
+                        </label>
+                        <Input
+                          value={division.scriptureRange}
+                          onChange={(e) => updateDivision(division.id, 'scriptureRange', e.target.value)}
+                          placeholder="e.g., Genesis 22:1-2"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                          Principle
+                        </label>
+                        <Textarea
+                          value={division.principle}
+                          onChange={(e) => updateDivision(division.id, 'principle', e.target.value)}
+                          rows={2}
+                          placeholder="Universal spiritual truth..."
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {phase1.selected && !isEditing && (
         <Card className="bg-blue-50 border-blue-200">
           <CardContent className="p-4">
-            <h4 className="font-medium flex items-center gap-2">
-              <Check className="h-4 w-4 text-blue-600" />
-              Strategic Foundation Selected
-            </h4>
-            <p className="text-sm mt-1">{phase1.selected.aim}</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-medium flex items-center gap-2">
+                  <Check className="h-4 w-4 text-blue-600" />
+                  Strategic Foundation Selected
+                </h4>
+                <p className="text-sm mt-1">{phase1.selected.aim}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => {
+                setEditedOption(JSON.parse(JSON.stringify(phase1.selected)));
+                setIsEditing(true);
+              }}>
+                <Edit3 className="h-4 w-4 mr-1" />
+                Edit
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
