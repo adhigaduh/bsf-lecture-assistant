@@ -126,68 +126,65 @@ export default function Home() {
       {/* Workflow Status / Resume */}
       <WorkflowStatus />
 
-       <div className="flex">
-         {/* Work Sidebar */}
-         {sidebarOpen && (
-           <aside className="w-64 bg-white border-r min-h-[calc(100vh-64px)] p-4">
-             {!isHydrated ? (
-               <div className="p-4 text-center text-gray-500">
-                 <p>Loading...</p>
-               </div>
-             ) : (
-               <nav className="space-y-2">
-                 {phases.map((phase) => {
-                   const Icon = phase.icon;
-                   const isActive = phase.id === currentPhase;
-                   const isCompleted = phase.id < currentPhase;
-                   const canAccess = phase.id === 1 || canProceedToPhase(phase.id as 1 | 2 | 3 | 4);
-                   const isDisabled = !canAccess && !isActive;
-                   
-                   return (
-                     <Button
-                       key={phase.id}
-                       variant={isActive ? 'default' : 'ghost'}
-                       className="w-full justify-start"
-                       disabled={isDisabled}
-                       onClick={() => {
-                         if (canAccess) {
-                           setCurrentPhase(phase.id as WorkflowPhase);
-                           // Auto-save when switching phases if logged in and has a document
-                           if (currentUser && currentDocumentId) {
-                             saveCurrentDocument();
-                           }
-                         }
-                       }}
-                     >
-                       <Icon className="h-4 w-4 mr-2" />
-                       {phase.name}
-                       {isCompleted && (
-                         <Badge variant="secondary" className="ml-auto">✓</Badge>
-                       )}
-                     </Button>
-                   );
-                 })}
-               </nav>
-             )}
+        <div className="flex">
+          {/* Work Sidebar */}
+          {sidebarOpen && (
+            <aside className="w-64 bg-white border-r min-h-[calc(100vh-64px)] p-4">
+              {!isHydrated ? (
+                <div className="p-4 text-center text-gray-500">
+                  <p>Loading...</p>
+                </div>
+              ) : (
+                <nav className="space-y-2">
+                  {phases.map((phase) => {
+                    const Icon = phase.icon;
+                    const isActive = phase.id === currentPhase;
+                    const isCompleted = phase.id < currentPhase;
+                    const canAccess = phase.id === 1 || canProceedToPhase(phase.id as 1 | 2 | 3 | 4);
+                    const isDisabled = !canAccess && !isActive;
 
-             {/* Quick Mode Toggle - Removed (not needed with auto-save) */}
-           </aside>
-         )}
+                    return (
+                      <Button
+                        key={phase.id}
+                        variant={isActive ? 'default' : 'ghost'}
+                        className="w-full justify-start"
+                        disabled={isDisabled}
+                        onClick={() => {
+                          if (canAccess) {
+                            setCurrentPhase(phase.id as WorkflowPhase);
+                            if (currentUser && currentDocumentId) {
+                              saveCurrentDocument();
+                            }
+                          }
+                        }}
+                      >
+                        <Icon className="h-4 w-4 mr-2" />
+                        {phase.name}
+                        {isCompleted && (
+                          <Badge variant="secondary" className="ml-auto">✓</Badge>
+                        )}
+                      </Button>
+                    );
+                  })}
+                </nav>
+              )}
+            </aside>
+          )}
 
-         {/* Document Panel (Right Sidebar) */}
-         {showDocumentPanel && (
-           <aside className="w-80 bg-white border-l min-h-[calc(100vh-64px)] p-4 overflow-auto">
-             <DocumentPanel />
-           </aside>
-         )}
+          {/* Main Content */}
+          <main className="flex-1 p-6 overflow-auto pb-24">
+            <div className="max-w-4xl mx-auto">
+              <CurrentComponent />
+            </div>
+          </main>
 
-        {/* Main Content */}
-        <main className="flex-1 p-6 overflow-auto pb-24">
-          <div className="max-w-4xl mx-auto">
-            <CurrentComponent />
-          </div>
-        </main>
-      </div>
+          {/* Document Panel (Right Sidebar) */}
+          {showDocumentPanel && (
+            <aside className="w-80 bg-white border-l min-h-[calc(100vh-64px)] p-4 overflow-auto">
+              <DocumentPanel />
+            </aside>
+          )}
+        </div>
 
       {/* Navigation Footer */}
       <footer className="fixed bottom-0 left-0 right-0 bg-white border-t p-3">

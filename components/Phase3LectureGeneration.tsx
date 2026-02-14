@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Music, Clock, ChevronDown, ChevronUp, Save, Check, BookOpen, Upload, FileText } from 'lucide-react';
+import { Loader2, Music, Clock, ChevronDown, ChevronUp, Save, Check, BookOpen, Upload, FileText, ArrowRight } from 'lucide-react';
 import { Lecture, WorshipSong } from '@/types/workflow';
 import { exportToMarkdown } from '@/lib/export/markdown';
 
@@ -65,6 +65,7 @@ export function Phase3LectureGeneration() {
   const [generationTime, setGenerationTime] = useState<number>(0);
   const [isSaving, setIsSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState('');
+  const [isLectureSaved, setIsLectureSaved] = useState(false);
   
   // Markdown style upload state
   const [styleMarkdown, setStyleMarkdown] = useState('');
@@ -119,6 +120,7 @@ export function Phase3LectureGeneration() {
       
       const result = await response.json();
       setSavedMessage(`Saved to: ${result.fileName}`);
+      setIsLectureSaved(true);
       setTimeout(() => setSavedMessage(''), 5000);
     } catch (error) {
       console.error('Error saving lecture:', error);
@@ -1052,10 +1054,10 @@ export function Phase3LectureGeneration() {
              </Button>
 
              {/* Primary action changes based on save state */}
-             {savedMessage ? (
+             {isLectureSaved ? (
                <Button onClick={nextPhase} size="lg" className="bg-green-600 hover:bg-green-700">
                  Proceed to Visual Assets
-                 <Check className="h-4 w-4 ml-2" />
+                 <ArrowRight className="h-4 w-4 ml-2" />
                </Button>
              ) : (
                <Button 
