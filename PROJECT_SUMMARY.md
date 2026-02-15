@@ -88,7 +88,11 @@ GOOGLE_API_KEY=your_google_key_for_images
 
 #### Phase 5: Visual Assets
 - **Component**: `components/Phase4VisualAssets.tsx`
-- **Features**: Generate AI image prompts for presentation slides
+- **Features**:
+  - Generate AI image prompts for presentation slides
+  - Theme generation with consistency enforcement
+  - Manual style preferences (visual style, color, mood)
+  - Theme preview and selection
 - **Visual Style Options**:
   - Auto (AI decides)
   - Photographic (realistic photos)
@@ -100,6 +104,11 @@ GOOGLE_API_KEY=your_google_key_for_images
   - Watercolor (painted effects)
   - Cinematic (movie-like scenes)
   - Noir (black and white, dramatic shadows) ✨ NEW
+- **Theme Consistency**: ✅ When theme selected, enforced across ALL slides
+  - Theme colors override slide-specific color suggestions
+  - Theme mood overrides slide-specific mood requests
+  - Theme lighting style applies to every slide
+  - AI quality-checked to verify theme adherence
 - **API**: `app/api/generate/phase4/route.ts` (prompts only)
 - **Image Generation**: `app/api/generate-image/route.ts` (Google Gemini)
 - **Slide Structure** (13 slides for 3 divisions):
@@ -133,6 +142,16 @@ GOOGLE_API_KEY=your_google_key_for_images
 - `components/DocumentPanel.tsx` - Document management sidebar
 
 ## Recent Features & Fixes
+
+### Visual Theme Consistency ✅ (Feb 15, 2026)
+- Enhanced Phase 4 prompts to ensure selected theme is applied to ALL slides
+- Added critical instruction section specifying theme precedence
+- Updated all slide templates with conditional theme enforcement
+- Added final reminder with theme details before AI response
+- Added quality check section for AI to verify consistency
+- Theme colors, mood, visual style, and lighting now override slide-specific suggestions
+- AI uses "MUST use theme..." language in visual prompts when theme is selected
+- Ensures visual consistency across all 13 generated slides
 
 ### Multiple File Upload Support ✅ (Feb 15, 2026)
 - Upload multiple files at once (PDF, DOCX, TXT)
@@ -241,6 +260,14 @@ All phases now have Cancel buttons during generation:
 6. ✅ Click "Use All Files" - combines all content
 7. ✅ Verify combined text sent to Phase 1
 
+### Theme Consistency Test ✨ NEW
+1. ✅ Generate design themes from lecture content
+2. ✅ Select a theme (color palette, mood, visual style, lighting)
+3. ✅ Generate visual assets with theme selected
+4. ✅ Verify ALL slides use theme colors (not slide-specific colors)
+5. ✅ Verify ALL slides use theme mood (not "peaceful" or "dramatic" from template)
+6. ✅ Verify visual consistency across all generated slides
+
 ### Cancel Button Test
 1. Start generation in any phase
 2. Click Cancel button
@@ -296,6 +323,7 @@ origin: https://github.com/adhigaduh/bsf-lecture-assistant.git
 branch: main
 
 # Recent commits (Feb 15, 2026)
+- Ensure selected theme is consistently applied across all slides
 - Add multiple file upload support and noir/hyper-realistic visual styles
 
 # Recent commits (Feb 14, 2026)
