@@ -1,6 +1,6 @@
 # BSF Lecture Assistant - Project Summary
 
-## Current Status (Last Updated: Feb 14, 2026)
+## Current Status (Last Updated: Feb 15, 2026)
 
 ## Overview
 Agentic web application for Indonesian adult men to generate BSF (Bible Study Fellowship) lecture materials. 5-phase workflow: Upload → Strategy → Narrative → Lecture → Visuals.
@@ -46,7 +46,12 @@ GOOGLE_API_KEY=your_google_key_for_images
 
 #### Phase 1: File Upload
 - **Component**: `components/FileUploader.tsx`
-- **Features**: PDF, DOCX, TXT upload, drag-and-drop, manual text entry
+- **Features**:
+  - Upload multiple files at once (PDF, DOCX, TXT)
+  - ALL files combined when processing (not just selected)
+  - Drag-and-drop support
+  - File list with preview and individual removal
+  - Manual text entry option
 - **API**: `app/api/upload/route.ts`
 - **Status**: ✅ Working
 
@@ -84,6 +89,17 @@ GOOGLE_API_KEY=your_google_key_for_images
 #### Phase 5: Visual Assets
 - **Component**: `components/Phase4VisualAssets.tsx`
 - **Features**: Generate AI image prompts for presentation slides
+- **Visual Style Options**:
+  - Auto (AI decides)
+  - Photographic (realistic photos)
+  - Hyper-realistic (impossible detail) ✨ NEW
+  - Illustrated (drawings/illustrations)
+  - Minimalist (simple, clean)
+  - Textured (paper, fabric, stone textures)
+  - Geometric (shapes, patterns)
+  - Watercolor (painted effects)
+  - Cinematic (movie-like scenes)
+  - Noir (black and white, dramatic shadows) ✨ NEW
 - **API**: `app/api/generate/phase4/route.ts` (prompts only)
 - **Image Generation**: `app/api/generate-image/route.ts` (Google Gemini)
 - **Slide Structure** (13 slides for 3 divisions):
@@ -115,6 +131,24 @@ GOOGLE_API_KEY=your_google_key_for_images
 - `components/ProgressBar.tsx` - Phase progress indicator
 - `components/SettingsPanel.tsx` - Language (EN/ID), AI settings
 - `components/DocumentPanel.tsx` - Document management sidebar
+
+## Recent Features & Fixes
+
+### Multiple File Upload Support ✅ (Feb 15, 2026)
+- Upload multiple files at once (PDF, DOCX, TXT)
+- **ALL uploaded files combined** when processing to Phase 1
+- File list display with selection for preview
+- Individual file removal with trash icon
+- File count badge and character counts per file
+- Button changes to "Use All Files (N)" with count
+- Success message shows "N file(s) combined and ready!"
+- Playwright tests: 7/7 passing
+- Files separated with filename headers in combined text
+
+### Visual Style Enhancements ✅ (Feb 15, 2026)
+- Added "noir" visual style option (black and white, dramatic shadows)
+- Added "hyper-realistic" visual style option (impossible detail)
+- Placed in Phase 4 Visual Assets style selector
 
 ## Recent Features & Fixes (Feb 14, 2026)
 
@@ -183,19 +217,29 @@ All phases now have Cancel buttons during generation:
 
 ### Full Workflow Test
 1. ✅ Login/Register
-2. ✅ Upload text file
-3. ✅ Generate Phase 1 options
-4. ✅ Edit Phase 1 selection
-5. ✅ Accept and proceed to Phase 2
-6. ✅ Generate Phase 2 stories
-7. ✅ Edit Phase 2 selection  
-8. ✅ Accept and proceed to Phase 3
-9. ✅ Generate lecture
-10. ✅ Edit lecture
-11. ✅ Accept & Save
-12. ✅ Proceed to Phase 4
-13. ✅ Generate visual prompts
-14. ✅ (Optional) Try image generation
+2. ✅ Upload text file (single or multiple)
+3. ✅ Verify multiple files combined when processing
+4. ✅ Generate Phase 1 options
+5. ✅ Edit Phase 1 selection
+6. ✅ Accept and proceed to Phase 2
+7. ✅ Generate Phase 2 stories
+8. ✅ Edit Phase 2 selection
+9. ✅ Accept and proceed to Phase 3
+10. ✅ Generate lecture
+11. ✅ Edit lecture
+12. ✅ Accept & Save
+13. ✅ Proceed to Phase 4
+14. ✅ Generate visual prompts
+15. ✅ (Optional) Try image generation
+
+### Multiple File Upload Test
+1. ✅ Upload single file - shows in list
+2. ✅ Upload multiple files - all shown in list
+3. ✅ Select different files for preview
+4. ✅ Remove individual files
+5. ✅ File count and character counts display
+6. ✅ Click "Use All Files" - combines all content
+7. ✅ Verify combined text sent to Phase 1
 
 ### Cancel Button Test
 1. Start generation in any phase
@@ -251,7 +295,10 @@ All phases now have Cancel buttons during generation:
 origin: https://github.com/adhigaduh/bsf-lecture-assistant.git
 branch: main
 
-# Recent commits
+# Recent commits (Feb 15, 2026)
+- Add multiple file upload support and noir/hyper-realistic visual styles
+
+# Recent commits (Feb 14, 2026)
 - Add design elements to visual prompts
 - Remove unsupported aspectRatio parameter
 - Add Cancel buttons and Lecture Edit feature
@@ -262,7 +309,7 @@ branch: main
 ## Server Status
 - Dev server: `npm run dev` → http://localhost:3000
 - Build: `npm run build` → ✅ Passing
-- Last restart: Feb 14, 2026
+- Last restart: Feb 15, 2026
 
 ---
 
