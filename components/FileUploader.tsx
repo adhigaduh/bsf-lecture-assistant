@@ -62,16 +62,20 @@ export function FileUploader() {
           text: text,
           timestamp: Date.now(),
         };
-        
+
         // Add to uploaded files list
-        setUploadedFiles(prev => [...prev, newFile]);
-        
-        // Select this file and populate text area
+        setUploadedFiles(prev => {
+          const updated = [...prev, newFile];
+          return updated;
+        });
+
+        // Select this file and populate text area for preview
         setSelectedFileId(newFile.id);
         setManualText(text);
         setUploadedFileName(newFile.name);
-        
-        setStatusMessage(`"${newFile.name}" uploaded successfully!`);
+
+        const totalCount = uploadedFiles.length + 1;
+        setStatusMessage(`"${newFile.name}" added to list (${totalCount} total file(s))`);
         setStatusType('success');
       }
     } catch (error) {
@@ -95,7 +99,7 @@ export function FileUploader() {
     setSelectedFileId(file.id);
     setManualText(file.text);
     setUploadedFileName(file.name);
-    setStatusMessage(`Selected: "${file.name}"`);
+    setStatusMessage(`Previewing: "${file.name}" (Click "Use All Files" to combine all)`);
     setStatusType('info');
   };
 
@@ -129,11 +133,25 @@ export function FileUploader() {
   }, []);
 
   const handleManualInput = () => {
-    const textToUse = manualText.trim() || uploadedText.trim();
-    if (textToUse) {
-      setUploadedText(textToUse, uploadedFileName || 'Manual Input');
-      setStatusMessage('✓ Text ready! Click Next to continue.');
+    if (uploadedFiles.length > 0) {
+      // Combine all uploaded files with separators
+      const combinedText = uploadedFiles
+        .map((file, index) => {
+          const separator = index > 0 ? '\n\n' : '';
+          return `${separator}[${file.name}]\n${file.text}`;
+        })
+        .join('');
+      
+      setUploadedText(combinedText, `${uploadedFiles.length} file(s) uploaded`);
+      setStatusMessage(`✓ ${uploadedFiles.length} file(s) combined and ready! Click Next to continue.`);
       setStatusType('success');
+    } else {
+      const textToUse = manualText.trim() || uploadedText.trim();
+      if (textToUse) {
+        setUploadedText(textToUse, uploadedFileName || 'Manual Input');
+        setStatusMessage('✓ Text ready! Click Next to continue.');
+        setStatusType('success');
+      }
     }
   };
 
@@ -235,7 +253,7 @@ export function FileUploader() {
           <CardHeader>
             <CardTitle>Uploaded Files ({uploadedFiles.length})</CardTitle>
             <CardDescription>
-              Click on a file to select it for processing
+              Click on a file to preview it. All uploaded files will be combined when you click "Use All Files"
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -289,9 +307,11 @@ export function FileUploader() {
         <CardHeader>
           <CardTitle>Review Extracted Text</CardTitle>
           <CardDescription>
-            {uploadedFileName 
-              ? `From: ${uploadedFileName}`
-              : 'Paste or type your lesson material below'}
+            {uploadedFiles.length > 0
+              ? `${uploadedFiles.length} file(s) uploaded - All will be combined when you click "Use All Files"`
+              : uploadedFileName
+                ? `From: ${uploadedFileName}`
+                : 'Paste or type your lesson material below'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -306,16 +326,27 @@ export function FileUploader() {
               />
             </div>
             <div className="flex gap-2">
-              <Button 
-                onClick={handleManualInput}
-                disabled={(!manualText.trim() && !uploadedText.trim()) || isUploading}
-                size="lg"
-              >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Use This Text
-              </Button>
-              <Button 
-                variant="outline" 
+              {uploadedFiles.length > 0 ? (
+                <Button
+                  onClick={handleManualInput}
+                  disabled={isUploading}
+                  size="lg"
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Use All Files ({uploadedFiles.length})
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleManualInput}
+                  disabled={!manualText.trim()}
+                  size="lg"
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Use This Text
+                </Button>
+              )}
+              <Button
+                variant="outline"
                 onClick={clearAll}
                 size="lg"
               >

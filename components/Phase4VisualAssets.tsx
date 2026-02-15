@@ -80,12 +80,14 @@ export function Phase4VisualAssets() {
   const visualStyleOptions = [
     { value: '', label: 'Auto (AI decides)' },
     { value: 'photographic', label: 'Photographic (realistic photos)' },
+    { value: 'hyper-realistic', label: 'Hyper-realistic (impossible detail)' },
     { value: 'illustrated', label: 'Illustrated (drawings/illustrations)' },
     { value: 'minimalist', label: 'Minimalist (simple, clean)' },
     { value: 'textured', label: 'Textured (paper, fabric, stone textures)' },
     { value: 'geometric', label: 'Geometric (shapes, patterns)' },
     { value: 'watercolor', label: 'Watercolor (painted effects)' },
     { value: 'cinematic', label: 'Cinematic (movie-like scenes)' },
+    { value: 'noir', label: 'Noir (black and white, dramatic shadows)' },
   ];
 
   const colorPaletteOptions = [
