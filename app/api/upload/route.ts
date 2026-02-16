@@ -8,6 +8,8 @@ import * as os from 'os';
 
 const execAsync = promisify(exec);
 
+const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -25,7 +27,6 @@ export async function POST(request: NextRequest) {
     let extractedText = '';
 
     if (fileExtension === 'pdf') {
-      // Save the uploaded file temporarily
       const tempDir = os.tmpdir();
       const tempFilePath = path.join(tempDir, `pdf-${Date.now()}-${fileName}`);
       
@@ -34,9 +35,13 @@ export async function POST(request: NextRequest) {
       
       try {
         const pythonScriptPath = path.join(tempDir, `extract-${Date.now()}.py`);
-        const pythonScript = `
-import sys
+        const pythonScript = `import sys
+import io
 import pdfplumber
+
+# Force UTF-8 output for cross-platform compatibility
+if hasattr(sys.stdout, 'buffer'):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 pdf_path = sys.argv[1]
 text_parts = []
@@ -47,15 +52,15 @@ with pdfplumber.open(pdf_path) as pdf:
             text_parts.append(text)
 
 if text_parts:
-    print('\\n\\n'.join(text_parts))
+    print(chr(10).join(text_parts))
 else:
-    print('No text found', file=sys.stderr)
+    print("No text found", file=sys.stderr)
     sys.exit(1)
 `;
         fs.writeFileSync(pythonScriptPath, pythonScript);
         
         try {
-          const { stdout, stderr } = await execAsync(`python3 "${pythonScriptPath}" "${tempFilePath}"`);
+          const { stdout, stderr } = await execAsync(`${pythonCmd} "${pythonScriptPath}" "${tempFilePath}"`);
           
           if (stdout && stdout.trim()) {
             extractedText = stdout;
@@ -66,25 +71,12 @@ else:
           try { fs.unlinkSync(pythonScriptPath); } catch {}
         }
       } catch (pythonError) {
-        console.log('Python extraction failed, trying fallback:', pythonError);
-        // Fallback: basic string extraction
-        extractedText = await extractTextFallback(Buffer.from(arrayBuffer));
+        console.log('Python extraction failed:', pythonError);
+        extractedText = '';
       } finally {
-        // Clean up temp file
-        try {
-          fs.unlinkSync(tempFilePath);
-        } catch {}
+        try { fs.unlinkSync(tempFilePath); } catch {}
       }
       
-      // Clean up the extracted text
-      if (extractedText) {
-        extractedText = extractedText
-          .replace(/\n{3,}/g, '\n\n')
-          .replace(/\s+/g, ' ')
-          .trim();
-      }
-      
-      // If text is too short or empty
       if (!extractedText || extractedText.length < 50) {
         return NextResponse.json({
           success: true,
@@ -95,7 +87,6 @@ else:
         });
       }
       
-      // Truncate if too long
       if (extractedText.length > 15000) {
         extractedText = extractedText.substring(0, 15000) + '\n\n...[text truncated for processing]';
       }
@@ -113,8 +104,10 @@ else:
     }
 
     extractedText = extractedText
-      .replace(/\n+/g, '\n')
-      .replace(/\t+/g, ' ')
+      .replace(/\r\n/g, '\n')           // Normalize line endings
+      .replace(/\n{3,}/g, '\n\n')       // Limit blank lines to max 2
+      .replace(/\t+/g, ' ')             // Replace tabs with space
+      .replace(/[ ]+(?=\n)/g, '')       // Remove trailing spaces before newlines
       .trim();
 
     return NextResponse.json({
@@ -131,33 +124,4 @@ else:
       { status: 500 }
     );
   }
-}
-
-// Fallback PDF text extraction
-async function extractTextFallback(buffer: Buffer): Promise<string> {
-  const bytes = Array.from(buffer).map(b => String.fromCharCode(b)).join('');
-  
-  // Try to find text between parentheses (common PDF text encoding)
-  const textMatches = bytes.match(/\((?:[^\)]*)\)/g) || [];
-  
-  const textParts = textMatches
-    .map(t => {
-      let decoded = t.replace(/^\(|\)$/g, '');
-      // Decode common PDF escape sequences
-      decoded = decoded
-        .replace(/\\(\d{3})/g, (_, octal) => String.fromCharCode(parseInt(octal, 8)))
-        .replace(/\\n/g, '\n')
-        .replace(/\\r/g, '\r')
-        .replace(/\\t/g, '\t')
-        .replace(/\\b/g, '\b')
-        .replace(/\\f/g, '\f')
-        .replace(/\\\(/g, '(')
-        .replace(/\\\)/g, ')')
-        .replace(/\\\\/g, '\\');
-      return decoded.trim();
-    })
-    .filter(t => t.length > 2 && !t.match(/^[\d\s\/\[\]{}<>]+$/))
-    .filter(t => t.length > 3);
-  
-  return textParts.join(' ');
 }
