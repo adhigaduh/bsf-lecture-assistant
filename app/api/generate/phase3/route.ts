@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Phase 3 generation error:', error);
+    console.error('Phase 3 error stack:', error instanceof Error ? error.stack : 'No stack');
     return NextResponse.json(
       { 
         error: error instanceof Error ? error.message : 'Generation failed',

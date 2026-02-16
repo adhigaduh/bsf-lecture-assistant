@@ -85,7 +85,11 @@ export function Phase2NarrativeArc() {
           text: uploadedText,
           context: { 
             phase1Selection: phase1.selected,
-            optionsCount: 3 
+            optionsCount: 3,
+            settings: {
+              language: settings.language,
+              targetAudience: settings.targetAudience
+            }
           }
         }),
         signal: abortControllerRef.current.signal,
@@ -256,7 +260,7 @@ export function Phase2NarrativeArc() {
               
               {phase2.options.map((option, index) => (
                 <Card 
-                  key={option.id}
+                  key={option.id || `option-${index}`}
                   className={`cursor-pointer transition-all ${
                     phase2.selected?.id === option.id 
                       ? 'ring-2 ring-blue-500' 
@@ -428,7 +432,7 @@ export function Phase2NarrativeArc() {
                 <h4 className="text-sm font-medium text-gray-700 mb-3">Characters</h4>
                 <div className="space-y-3">
                   {editedOption.characters.map((char, index) => (
-                    <Card key={index} className="bg-gray-50">
+                    <Card key={`char-${index}-${char.name}`} className="bg-gray-50">
                       <CardContent className="p-3 space-y-2">
                         <div className="grid grid-cols-2 gap-2">
                           <div>

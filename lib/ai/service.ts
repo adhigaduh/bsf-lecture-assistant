@@ -43,8 +43,68 @@ export class AIService {
     
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
     const openaiKey = process.env.OPENAI_API_KEY;
+    const googleKey = process.env.GOOGLE_API_KEY;
     
-    if (anthropicKey && config) {
+    // Check if config specifies a specific active provider
+    const activeProviderId = config?.ai_providers?.active;
+    
+    // Helper to get provider from config
+    const getProviderFromConfig = (providerId: string) => {
+      return config?.ai_providers?.providers?.find(p => p.id === providerId);
+    };
+    
+    // Initialize based on active provider in config, or fall back to key availability
+    if (activeProviderId === 'gemini' && googleKey && config) {
+      const geminiConfig = getProviderFromConfig('gemini');
+      this.provider = {
+        name: 'Google Gemini',
+        id: 'gemini',
+        enabled: true,
+        models: geminiConfig?.models || [{
+          id: 'gemini-2.0-flash',
+          name: 'Gemini 2.0 Flash',
+          max_tokens: 8192,
+          temperature: 0.7,
+        }],
+        env_var: 'GOOGLE_API_KEY',
+        base_url: 'https://generativelanguage.googleapis.com',
+      };
+      this.model = this.provider.models[0];
+    } else if (activeProviderId === 'anthropic' && anthropicKey && config) {
+      this.provider = {
+        name: 'Anthropic',
+        id: 'anthropic',
+        enabled: true,
+        models: config.ai_providers.providers.find(p => p.id === 'anthropic')?.models || [{
+          id: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5',
+          name: 'Claude Sonnet',
+          max_tokens: 8192,
+          temperature: 0.7,
+          cost_per_1k_input: 0.003,
+          cost_per_1k_output: 0.015,
+        }],
+        env_var: 'ANTHROPIC_API_KEY',
+        base_url: 'https://api.anthropic.com/v1',
+      };
+      this.model = getDefaultModel(config) || this.provider.models[0];
+    } else if (activeProviderId === 'openai' && openaiKey && config) {
+      this.provider = {
+        name: 'OpenAI',
+        id: 'openai',
+        enabled: true,
+        models: config.ai_providers.providers.find(p => p.id === 'openai')?.models || [{
+          id: process.env.OPENAI_MODEL || 'gpt-4o',
+          name: 'GPT-4o',
+          max_tokens: 4096,
+          temperature: 0.7,
+          cost_per_1k_input: 0.005,
+          cost_per_1k_output: 0.015,
+        }],
+        env_var: 'OPENAI_API_KEY',
+        base_url: 'https://api.openai.com/v1',
+      };
+      this.model = getDefaultModel(config) || this.provider.models[0];
+    } else if (anthropicKey && config) {
       this.provider = {
         name: 'Anthropic',
         id: 'anthropic',
@@ -78,6 +138,22 @@ export class AIService {
         base_url: 'https://api.openai.com/v1',
       };
       this.model = getDefaultModel(config) || this.provider.models[0];
+    } else if (googleKey && config) {
+      const geminiConfig = getProviderFromConfig('gemini');
+      this.provider = {
+        name: 'Google Gemini',
+        id: 'gemini',
+        enabled: true,
+        models: geminiConfig?.models || [{
+          id: 'gemini-2.0-flash',
+          name: 'Gemini 2.0 Flash',
+          max_tokens: 8192,
+          temperature: 0.7,
+        }],
+        env_var: 'GOOGLE_API_KEY',
+        base_url: 'https://generativelanguage.googleapis.com',
+      };
+      this.model = this.provider.models[0];
     } else if (anthropicKey) {
       this.provider = {
         name: 'Anthropic',
@@ -93,6 +169,21 @@ export class AIService {
         }],
         env_var: 'ANTHROPIC_API_KEY',
         base_url: 'https://api.anthropic.com/v1',
+      };
+      this.model = this.provider.models[0];
+    } else if (googleKey) {
+      this.provider = {
+        name: 'Google Gemini',
+        id: 'gemini',
+        enabled: true,
+        models: [{
+          id: 'gemini-2.0-flash',
+          name: 'Gemini 2.0 Flash',
+          max_tokens: 8192,
+          temperature: 0.7,
+        }],
+        env_var: 'GOOGLE_API_KEY',
+        base_url: 'https://generativelanguage.googleapis.com',
       };
       this.model = this.provider.models[0];
     } else {
@@ -140,7 +231,7 @@ export class AIService {
       throw new Error('No AI provider configured.');
     }
     const prompt = this.buildPhase3Prompt(options);
-    const response = await this.callAI(prompt, 15000);
+    const response = await this.callAI(prompt, 20000);
     return this.parsePhase3Response(response);
   }
 
@@ -167,7 +258,7 @@ export class AIService {
       throw new Error('No AI provider configured.');
     }
     const prompt = this.buildWorshipSongPrompt(options);
-    const response = await this.callAI(prompt, 1500);
+    const response = await this.callAI(prompt, 4000);
     return this.parseWorshipSongResponse(response);
   }
 
@@ -189,6 +280,7 @@ export class AIService {
     const optionsCount = options.context?.optionsCount || 3;
     const language = options.context?.settings?.language || 'en';
     const languageInstruction = this.getLanguageInstruction(language);
+    const targetAudience = options.context?.settings?.targetAudience || 'Indonesian adult men';
     
     return `
 Analyze the following biblical text and generate ${optionsCount} distinct options for the Overall Aim and Divisional Principles.
@@ -198,11 +290,14 @@ ${languageInstruction}
 TEXT:
 ${options.text}
 
+TARGET AUDIENCE: ${targetAudience}
+
 For each option, provide:
 1. **Aim:** A single sentence summary of the lesson's goal
 2. **Divisions:** Break the pericope into 2-4 logical subsections
 3. **Principles:** For each division, write a complete sentence stating a universal spiritual truth about God or men in reference to God
-4. **Confidence Score:** A probability percentage (0-100%) based on textual accuracy and relevance to Indonesian adult men
+4. **Confidence Score:** A probability percentage (0-100%) based on textual accuracy and relevance to ${targetAudience}
+5. **Reasoning:** A brief explanation (2-3 sentences) explaining why this option scored this confidence level, specifically addressing how the aim, divisions, and principles connect to the life experiences, challenges, and spiritual needs of ${targetAudience} (ages 20s-60s) in their workplace, family, and faith journey
 
 Format each option as JSON:
 {
@@ -228,6 +323,7 @@ Format each option as JSON:
     const phase1 = options.context?.phase1Selection;
     const language = options.context?.settings?.language || 'en';
     const languageInstruction = this.getLanguageInstruction(language);
+    const targetAudience = options.context?.settings?.targetAudience || 'Indonesian adult men';
     
     const divisionsText = phase1?.divisions 
       ? phase1.divisions.map(d => `- ${d.title}: ${d.principle}`).join('\n')
@@ -238,6 +334,8 @@ Based on the selected Strategic Foundation, generate ${optionsCount} distinct "B
 
 ${languageInstruction}
 
+TARGET AUDIENCE: ${targetAudience}
+
 SELECTED AIM:
 ${phase1?.aim || 'Not specified'}
 
@@ -245,7 +343,7 @@ DIVISIONS:
 ${divisionsText}
 
 Generate stories that:
-1. Create empathy and engagement with Indonesian men
+1. Create empathy and engagement with the target audience (${targetAudience})
 2. Fit the theological aim of the lesson
 3. Differ in tone (historical, personal illustration, contemporary news, biblical)
 
@@ -275,6 +373,7 @@ Format as JSON:
     const phase2 = options.context?.phase2Selection;
     const language = options.context?.settings?.language || 'en';
     const languageInstruction = this.getLanguageInstruction(language);
+    const targetAudience = options.context?.settings?.targetAudience || 'Indonesian adult men';
     const langSpecific = language === 'id' ? 'dalam bahasa Indonesia' : 'in English';
     const styleMarkdown = options.styleMarkdown;
 
@@ -291,6 +390,10 @@ ${styleMarkdown.substring(0, 3000)}
 Write the full lecture manuscript based on the selected Strategic Foundation and Narrative Arc.
 
 TARGET WORD COUNT: 3600-4000 words total (aim for ~3800 words)
+- Introduction: 450-500 words
+- Each Division (Body): 800-1000 words per division (includes exposition, principle, application)
+- Conclusion: 450-500 words
+
 ${languageInstruction}
 ${styleSection}
 
@@ -310,17 +413,52 @@ Opening: ${phase2?.opening || 'Not specified'}
 Cliffhanger: ${phase2?.cliffhanger || 'Not specified'}
 Resolution: ${phase2?.resolution || 'Not specified'}
 
-STRUCTURE (concise, avoid repetition):
-1. **Introduction (400-500 words):** Tell the opening part of the story ${langSpecific}, ending with the cliffhanger. Set biblical context briefly but thoroughly.
-2. **Body (300-400 words per division):** For each of 3 divisions:
-   - Exposition: Context and text explanation with depth (3-4 sentences)
-   - Principle: State the principle naturally (1-2 sentences)
-   - Application: 2-3 questions per age group (provide substance)
-3. **Conclusion (400-500 words):** Resolve the story ${langSpecific}, connect to aim with warmth, meaningful closing prayer
+REQUIRED STRUCTURE - Each section MUST include a "word_count" field:
+{
+  "title": "Lecture Title",
+  "scriptureReference": "Genesis 22:1-19",
+  "introduction": {
+    "word_count": 480,
+    "storyOpening": "Full opening story content (450-500 words)...",
+    "cliffhanger": "The cliffhanger that hooks listeners...",
+    "transitionToText": "Transition to biblical text..."
+  },
+  "body": [
+    {
+      "word_count": 920,
+      "title": "Division 1 Title",
+      "scriptureRange": "Genesis 22:1-2",
+      "exposition": {
+        "word_count": 450,
+        "content": "Deep exposition of the passage (450+ words)..."
+      },
+      "principle_statement": {
+        "word_count": 120,
+        "content": "Clear principle statement (100-150 words)..."
+      },
+      "application": {
+        "word_count": 350,
+        "content": "Practical application with questions (350+ words)..."
+      }
+    }
+  ],
+  "conclusion": {
+    "word_count": 480,
+    "storyResolution": "Resolution of the story (150-200 words)...",
+    "callToAction": "Call to action (100-150 words)...",
+    "closingPrayer": "Closing prayer (50-100 words)...",
+    "finalThought": "Memorable closing thought (50-100 words)..."
+  }
+}
 
-IMPORTANT: Each section should be substantial and complete. Avoid repeating concepts across sections but ensure thorough coverage.
+IMPORTANT: 
+- Write SUBSTANTIAL content - do not summarize or abbreviate
+- Each section word_count MUST match the actual content length
+- Total must be 3600-4000 words
+- Include rich cultural examples relevant to ${targetAudience}
+- Make applications practical and specific
 
-Format as JSON with the full lecture content ${langSpecific}.
+Format as valid JSON only.
     `.trim();
   }
 
@@ -329,6 +467,7 @@ Format as JSON with the full lecture content ${langSpecific}.
     const lecture = options.context?.phase3Lecture;
     const language = options.context?.settings?.language || 'en';
     const languageInstruction = this.getLanguageInstruction(language);
+    const targetAudience = options.context?.settings?.targetAudience || 'Indonesian adult men';
     const preferences = options.context?.preferences || {};
 
     const userPreferences = [];
@@ -358,7 +497,7 @@ LECTURE AIM:
 ${phase1?.aim || 'Not specified'}
 
 AUDIENCE:
-Indonesian adult men (young professionals, fathers/mid-life, elders)
+${targetAudience}
 Context: Church/Bible study setting
 
 DIVISIONS:
@@ -404,6 +543,7 @@ Return as JSON array:
     const lecture = options.context?.phase3Lecture;
     const language = options.context?.settings?.language || 'en';
     const languageInstruction = this.getLanguageInstruction(language);
+    const targetAudience = options.context?.settings?.targetAudience || 'Indonesian adult men';
 
     const divisions = phase1?.divisions || [];
     const divisionCount = divisions.length;
@@ -432,10 +572,32 @@ ${themeContext}
 LECTURE TITLE: ${lecture?.title || phase1?.aim || 'Untitled Lecture'}
 SCRIPTURE: ${lecture?.scriptureReference || 'Not specified'}
 
+================================================================================
+CRITICAL: TEXT-FREE BACKGROUNDS ONLY
+================================================================================
+The visualPrompt for EACH slide MUST generate a CLEAN BACKGROUND IMAGE with:
+✓ NO text, words, letters, numbers, or typography
+✓ NO readable characters or symbols
+✓ NO watermarks, labels, or captions
+✓ NO attempt to render written content
+
+The textOnSlide field is provided for REFERENCE ONLY and will be added manually 
+later using presentation software. DO NOT include text in the visualPrompt.
+
+Example of CORRECT visualPrompt:
+"Photorealistic mountain landscape at golden hour, warm amber and deep blue tones, 
+dramatic clouds, Rule of Thirds composition, soft natural lighting, peaceful mood, 
+NO TEXT, NO WORDS, NO LETTERS, clean background only"
+
+Example of INCORRECT visualPrompt (DO NOT DO THIS):
+"Mountain with text overlay saying 'Trust God', title text, scripture reference"
+================================================================================
+
 CRITICAL REQUIREMENTS:
 1. You MUST generate EXACTLY ${totalSlides} slides
 2. Each slide MUST be 16:9 aspect ratio (1920x1080 landscape)
-3. Slides MUST be in this EXACT order with these EXACT slideSection names:
+3. ALL visualPrompts MUST specify TEXT-FREE backgrounds (NO words, NO letters)
+4. Slides MUST be in this EXACT order with these EXACT slideSection names:
 
 SLIDE ORDER:
 ---
@@ -474,6 +636,7 @@ FOR ALL SLIDES BELOW, you MUST use the theme's specification:
 - Use the theme's specified mood
 - Use the theme's lighting style
 - Use the theme's visual style
+- ALL visualPrompts MUST include "NO TEXT, NO WORDS, NO LETTERS"
 - DO NOT deviate from the theme for consistency
 
 The slide-specific suggestions below are SUBJECT MATTER GUIDELINES only.
@@ -482,29 +645,28 @@ Use them for creative direction but STICK TO the theme's visual style parameters
 - colors: Specify 2-3 hex color codes that match the mood (e.g., ["#1E3A8A", "#F59E0B"])
 - composition: Use "Rule of Thirds" or "centered" or "asymmetrical balance"
 - mood: Choose from: dramatic, peaceful, triumphant, reflective, hopeful
-- lighting: Describe lighting (e.g., "soft natural light", "dramatic backlighting", "warm golden hour")`}
+- lighting: Describe lighting (e.g., "soft natural light", "dramatic backlighting", "warm golden hour")
+- CRITICAL: MUST include "NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY, clean background only"`}
 
 SLIDE 1 - "Title":
 textOnSlide:
 ---
-[LECTURE TITLE]
-[Scripture Reference]
+${lecture?.title || phase1?.aim || 'Untitled Lecture'}
+${lecture?.scriptureReference || phase1?.divisions?.[0]?.scriptureRange || ''}
 BSF Lecture
 ---
-visualPrompt: Elegant background with imagery reflecting the lecture theme. ${selectedTheme ? 'Use theme colors and mood exclusively. ' : 'Use Rule of Thirds composition. Include specific colors that match the mood.'}
-style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "..."}
+visualPrompt: Elegant background imagery reflecting the lecture theme. ${selectedTheme ? 'Use theme colors and mood exclusively. ' : 'Use Rule of Thirds composition. Include specific colors that match the mood.'} ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY. Clean background image only suitable for text overlay.
+style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "...", "text": "NONE - text-free background"}
 
 SLIDE 2 - "Outline":
 textOnSlide:
 ---
 Outline
 
-I. [Division 1 Title] ([Scripture])
-II. [Division 2 Title] ([Scripture])
-III. [Division 3 Title] ([Scripture])
+${divisions.map((d, i) => `${['I', 'II', 'III', 'IV'][i]}. ${d.title} (${d.scriptureRange})`).join('\n')}
 ---
-visualPrompt: Clean minimalist design for text readability. Use Rule of Thirds to position text. ${selectedTheme ? 'MUST use theme colors. ' : 'Soft, professional colors.'}
-style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "..."}
+visualPrompt: Clean minimalist design suitable for text list overlay. ${selectedTheme ? 'MUST use theme colors. ' : 'Soft, professional colors.'} Rule of Thirds composition with space for content. NO TEXT, NO WORDS, NO LETTERS. Background image only.
+style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "...", "text": "NONE - text-free background"}
 ${divisions.map((d, i) => `
 SLIDE ${3 + i * 3} - "Principle ${i + 1}":
 textOnSlide:
@@ -512,8 +674,8 @@ textOnSlide:
 ${d.title}
 "${d.principle}"
 ---
-visualPrompt: Visual metaphor that symbolizes this principle memorably. Use Rule of Thirds composition. ${selectedTheme ? 'MUST use theme colors and mood. ' : 'Include specific color palette and dramatic or peaceful lighting that reinforces the principle meaning.'}
-style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "..."}
+visualPrompt: Visual metaphor that symbolizes this principle memorably. Abstract representation or symbolic imagery. Rule of Thirds composition. ${selectedTheme ? 'MUST use theme colors and mood. ' : 'Include specific color palette and dramatic or peaceful lighting that reinforces the principle meaning.'} STRICTLY NO TEXT, NO WORDS, NO LETTERS, NO LABELS. Clean background for manual text overlay.
+style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "...", "text": "NONE - text-free background"}
 
 SLIDE ${4 + i * 3} - "Memory ${i + 1}":
 textOnSlide:
@@ -527,8 +689,8 @@ Example formats:
 • "3 R's of Trust: Remember, Respond, Rely"
 • "The Mountain Path: Surrender → Obey → See Provision"
 ---
-visualPrompt: Creative, memorable imagery that reinforces the memory aid. Use symbols, icons, or visual patterns that connect to the mnemonic. Apply Rule of Thirds. ${selectedTheme ? 'MUST use theme colors. ' : 'Use bold, memorable colors.'}
-style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "..."}
+visualPrompt: Creative, memorable symbolic imagery reinforcing the memory concept. Use symbols, icons, visual patterns, or metaphors ONLY - no written words or letters. ${selectedTheme ? 'MUST use theme colors. ' : 'Use bold, memorable colors.'} Rule of Thirds. ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO MNEMONIC TEXT IN IMAGE.
+style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "...", "text": "NONE - text-free background"}
 
 SLIDE ${5 + i * 3} - "Application ${i + 1}":
 textOnSlide:
@@ -539,8 +701,8 @@ Young Professionals: [Brief question for this division]
 Fathers/Mid-life: [Brief question for this division]
 Elders: [Brief question for this division]
 ---
-visualPrompt: Engaging image showing people in life situations relevant to this division. Use Rule of Thirds to create dynamic composition. ${selectedTheme ? 'MUST use theme colors. ' : 'Warm, relatable colors and natural lighting.'}
-style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "..."}`).join('')}
+visualPrompt: Engaging scene showing people in life situations relevant to this division. People in natural poses and settings. Rule of Thirds to create dynamic composition. ${selectedTheme ? 'MUST use theme colors. ' : 'Warm, relatable colors and natural lighting.'} NO TEXT, NO WORDS, NO SIGNS, NO LABELS. Background image only.
+style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "...", "text": "NONE - text-free background"}`).join('')}
 
 SLIDE ${3 + divisionCount * 3} - "Discussion":
 textOnSlide:
@@ -551,8 +713,8 @@ Discussion Questions
 2. [Question 2 for personal reflection]
 3. [Question 3 for group sharing - encouraging interaction]
 ---
-visualPrompt: Community/gathering imagery with space for questions. Use Rule of Thirds. ${selectedTheme ? 'MUST use theme colors and mood. ' : 'Welcoming colors and warm lighting.'}
-style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "..."}
+visualPrompt: Community/gathering imagery showing people in discussion circles or group settings. Welcoming atmosphere. Rule of Thirds. ${selectedTheme ? 'MUST use theme colors and mood. ' : 'Welcoming colors and warm lighting.'} NO TEXT, NO WORDS, NO LETTERS. Clean background for question overlay.
+style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "...", "text": "NONE - text-free background"}
 
 SLIDE ${4 + divisionCount * 3} - "Summary":
 textOnSlide:
@@ -563,10 +725,10 @@ Key Takeaways
 ✓ [Main point 2]
 ✓ [Main point 3]
 
-" [Memorable closing quote or principle]"
+"[Memorable closing quote or principle]"
 ---
-visualPrompt: Inspiring image that reinforces the main message. Use Rule of Thirds composition. ${selectedTheme ? 'MUST use theme colors and mood. ' : 'Uplifting colors and lighting that create a sense of completion and hope.'}
-style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "..."}
+visualPrompt: Inspiring imagery reinforcing the main message. Scene of completion, hope, or triumph. Rule of Thirds composition. ${selectedTheme ? 'MUST use theme colors and mood. ' : 'Uplifting colors and lighting that create a sense of completion and hope.'} ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO QUOTES IN IMAGE. Background only.
+style: {"mood": "...", "colors": ["#...", "#..."], "composition": "Rule of Thirds", "lighting": "...", "text": "NONE - text-free background"}
 
 ${selectedTheme ? `
 FINAL REMINDER: You MUST use the selected theme (${selectedTheme.name}) for ALL slides.
@@ -574,6 +736,7 @@ FINAL REMINDER: You MUST use the selected theme (${selectedTheme.name}) for ALL 
 - Mood: ${selectedTheme.mood}
 - Visual Style: ${selectedTheme.visualStyle}
 - Lighting: ${selectedTheme.lighting}
+- CRITICAL: ALL slides must specify "NO TEXT, NO WORDS, NO LETTERS"
 
 DO NOT deviate. EVERY slide must be consistent with this theme.
 ` : ''}
@@ -587,8 +750,8 @@ Return JSON array with ${totalSlides} slides:
     "slideNumber": 1,
     "textOnSlide": "...",
     "visualPrompt": "...",
-    "style": {"mood": "...", "colors": ["#..."], "composition": "...", "lighting": "..."},
-    "notes": "..."
+    "style": {"mood": "...", "colors": ["#..."], "composition": "...", "lighting": "...", "text": "NONE"},
+    "notes": "Background image only - no text rendered"
   }
 ]
 
@@ -600,10 +763,17 @@ QUALITY CHECK: Before returning the response, verify that:
 2. ALL slides have the theme mood: ${selectedTheme.mood}
 3. ALL slides follow the theme visual style: ${selectedTheme.visualStyle}
 4. ALL slides use the theme lighting style: ${selectedTheme.lighting}
-5. The presentation has visual CONSISTENCY across all slides
+5. ALL visualPrompts explicitly state "NO TEXT, NO WORDS, NO LETTERS"
+6. NO slide attempts to render text in the background image
 
-If any slide deviates from the theme, correct it before returning.
-` : ''}
+If any slide deviates from these requirements, correct it before returning.
+` : `
+QUALITY CHECK: Before returning the response, verify that:
+1. ALL visualPrompts explicitly state "NO TEXT, NO WORDS, NO LETTERS"
+2. NO slide attempts to render text, words, or typography in the image
+3. ALL backgrounds are suitable for manual text overlay
+
+If any slide has text in the visualPrompt or style, correct it before returning.`}
     `.trim();
   }
 
@@ -738,6 +908,8 @@ Example format:
       return this.callOpenAI(prompt, maxTokens);
     } else if (this.provider.id === 'anthropic') {
       return this.callAnthropic(prompt, maxTokens);
+    } else if (this.provider.id === 'gemini') {
+      return this.callGemini(prompt, maxTokens);
     } else {
       throw new Error(`Unsupported AI provider: ${this.provider.id}`);
     }
@@ -831,13 +1003,61 @@ Example format:
     }
   }
 
+  private async callGemini(prompt: string, maxTokens: number): Promise<string> {
+    const apiKey = process.env.GOOGLE_API_KEY;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minute timeout
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${this.model.id}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [{ text: this.getSystemPrompt() + '\n\n' + prompt }],
+              },
+            ],
+            generationConfig: {
+              maxOutputTokens: maxTokens,
+              temperature: this.model.temperature,
+            },
+          }),
+          signal: controller.signal,
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`Gemini API error: ${JSON.stringify(error)}`);
+      }
+
+      const data = await response.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Request timeout: The AI request took longer than 3 minutes');
+      }
+      throw error;
+    }
+  }
+
   private getSystemPrompt(): string {
     return `You are an expert BSF (Bible Study Fellowship) Teaching Assistant and Homiletics Strategist. 
-Your goal is to co-create lectures specifically for an audience of Indonesian adult men.
+Your goal is to co-create lectures specifically for an audience defined by the user in settings.
 
 Core Characteristics:
 - Theological Depth: Adhere strictly to the provided biblical text
-- Cultural Context: Tone, examples, and applications must resonate with Indonesian culture (communal responsibility, fatherhood, leadership, workplace integrity, respect)
+- Cultural Context: Tone, examples, and applications should be tailored to the target audience specified in the settings
 - Workflow Adherence: Act as an agent. Do NOT generate full content immediately. Execute workflow in strict phases.
 
 Always respond with valid JSON format as requested.`;
@@ -923,37 +1143,62 @@ Always respond with valid JSON format as requested.`;
   }
 
   private parsePhase3Response(response: string): Lecture {
+    console.log('[Phase3] Raw response length:', response.length);
+    console.log('[Phase3] Response preview (first 500 chars):', response.substring(0, 500));
+    console.log('[Phase3] Response preview (last 500 chars):', response.substring(response.length - 500));
+    
     try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      // Try to extract JSON from markdown code blocks first
+      let jsonText = response;
+      
+      // Check for markdown code blocks
+      const codeBlockMatch = response.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (codeBlockMatch) {
+        console.log('[Phase3] Found markdown code block, extracting content');
+        jsonText = codeBlockMatch[1];
+      }
+      
+      // Find JSON object
+      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
+        console.error('[Phase3] No JSON object found in response');
         throw new Error('No JSON found in response');
       }
       
+      console.log('[Phase3] Extracted JSON length:', jsonMatch[0].length);
+      
       const parsed = JSON.parse(jsonMatch[0]);
+      console.log('[Phase3] Parsed keys:', Object.keys(parsed));
       
       // Handle case where AI wraps lecture in "lecture" field
       if (parsed.lecture && typeof parsed.lecture === 'object') {
+        console.log('[Phase3] Found wrapped in "lecture" field');
         return parsed.lecture;
       }
       
       // Handle case where AI wraps lecture in "lecture_manuscript" field
       if (parsed.lecture_manuscript) {
+        console.log('[Phase3] Found wrapped in "lecture_manuscript" field');
         return parsed.lecture_manuscript;
       }
       
       // Handle case where metadata is at top level but body is nested
       if (parsed.metadata && parsed.introduction && parsed.body) {
+        console.log('[Phase3] Found flat structure with metadata');
         return parsed;
       }
       
       // If parsed has the expected fields, return it
       if (parsed.title || parsed.metadata) {
+        console.log('[Phase3] Found lecture with title/metadata');
         return parsed;
       }
       
+      console.error('[Phase3] Invalid structure - missing required fields. Keys found:', Object.keys(parsed));
       throw new Error('Invalid lecture structure');
     } catch (e) {
-      console.error('Failed to parse Phase 3 response:', e instanceof Error ? e.message : e);
+      console.error('[Phase3] Parse error:', e instanceof Error ? e.message : e);
+      console.error('[Phase3] Full response excerpt:', response.substring(0, 1000));
       throw new Error('Failed to generate lecture');
     }
   }

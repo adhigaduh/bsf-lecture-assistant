@@ -8,7 +8,27 @@ import * as os from 'os';
 
 const execAsync = promisify(exec);
 
-const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+// Detect if running on Windows
+const isWindows = os.platform() === 'win32';
+
+// Get the appropriate Python command for the platform
+function getPythonCommand(): string {
+  if (isWindows) {
+    // On Windows, try python first, then py
+    return 'python';
+  }
+  return 'python3';
+}
+
+// Escape file path for shell command (Windows-safe)
+function escapePath(filePath: string): string {
+  if (isWindows) {
+    // On Windows, wrap in quotes and escape any internal quotes
+    return `"${filePath.replace(/"/g, '""')}"`;
+  }
+  // On Unix, use single quotes to prevent shell interpretation
+  return `'${filePath.replace(/'/g, "'\"'\'")}'`;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,13 +55,15 @@ export async function POST(request: NextRequest) {
       
       try {
         const pythonScriptPath = path.join(tempDir, `extract-${Date.now()}.py`);
-        const pythonScript = `import sys
+        const pythonScript = `# -*- coding: utf-8 -*-
+import sys
 import io
 import pdfplumber
 
 # Force UTF-8 output for cross-platform compatibility
 if hasattr(sys.stdout, 'buffer'):
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 pdf_path = sys.argv[1]
 text_parts = []
@@ -57,10 +79,16 @@ else:
     print("No text found", file=sys.stderr)
     sys.exit(1)
 `;
-        fs.writeFileSync(pythonScriptPath, pythonScript);
+        fs.writeFileSync(pythonScriptPath, pythonScript, 'utf-8');
         
         try {
-          const { stdout, stderr } = await execAsync(`${pythonCmd} "${pythonScriptPath}" "${tempFilePath}"`);
+          const pythonCmd = getPythonCommand();
+          const scriptPathEscaped = escapePath(pythonScriptPath);
+          const tempFilePathEscaped = escapePath(tempFilePath);
+          const { stdout, stderr } = await execAsync(`${pythonCmd} ${scriptPathEscaped} ${tempFilePathEscaped}`, {
+            encoding: 'utf-8',
+            maxBuffer: 1024 * 1024 * 10 // 10MB buffer for large PDFs
+          });
           
           if (stdout && stdout.trim()) {
             extractedText = stdout;
@@ -72,7 +100,7 @@ else:
         }
       } catch (pythonError) {
         console.log('Python extraction failed:', pythonError);
-        extractedText = '';
+        extractedText = await extractTextFallback(Buffer.from(arrayBuffer));
       } finally {
         try { fs.unlinkSync(tempFilePath); } catch {}
       }
@@ -124,4 +152,48 @@ else:
       { status: 500 }
     );
   }
+}
+
+// Fallback PDF text extraction with Unicode support
+async function extractTextFallback(buffer: Buffer): Promise<string> {
+  // Convert buffer to string with UTF-8 encoding to preserve Unicode
+  let content: string;
+  try {
+    // Try UTF-8 first
+    content = buffer.toString('utf-8');
+  } catch {
+    // Fallback to Latin-1 (ISO-8859-1) which preserves all byte values
+    content = buffer.toString('latin1');
+  }
+  
+  // Try to find text between parentheses (common PDF text encoding)
+  const textMatches = content.match(/\((?:[^\)]*)\)/g) || [];
+  
+  const textParts = textMatches
+    .map(t => {
+      let decoded = t.replace(/^\(|\)$/g, '');
+      // Decode common PDF escape sequences
+      decoded = decoded
+        .replace(/\\(\d{3})/g, (_, octal) => {
+          try {
+            return String.fromCharCode(parseInt(octal, 8));
+          } catch {
+            return _;
+          }
+        })
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\r')
+        .replace(/\\t/g, '\t')
+        .replace(/\\b/g, '\b')
+        .replace(/\\f/g, '\f')
+        .replace(/\\\(/g, '(')
+        .replace(/\\\)/g, ')')
+        .replace(/\\\\/g, '\\');
+      return decoded.trim();
+    })
+    .filter(t => t.length > 2 && !t.match(/^[\d\s\/\[\]{}<>]+$/))
+    .filter(t => t.length > 3);
+  
+  // Join with proper Unicode handling
+  return textParts.join(' ');
 }

@@ -90,6 +90,7 @@ const initialState: WorkflowState = {
     aiModel: 'claude-3-5-sonnet-20241022',
     quickMode: false,
     autoSave: true,
+    targetAudience: 'Indonesian Adult Men',
   },
 };
 
@@ -280,10 +281,18 @@ export const useWorkflowStore = create<WorkflowStore>()(
       },
 
       resetWorkflow: () => {
-        set(initialState);
+        const currentUser = get().currentUser;
+        const currentSettings = get().settings;
+        
         if (typeof window !== 'undefined') {
           localStorage.removeItem('bsf-lecture-workflow');
         }
+        
+        set({
+          ...initialState,
+          currentUser: currentUser,
+          settings: currentSettings,
+        });
       },
 
       resetPhase: (phase: WorkflowPhase) => {

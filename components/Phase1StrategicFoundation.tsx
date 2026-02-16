@@ -88,7 +88,13 @@ export function Phase1StrategicFoundation() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: uploadedText,
-          context: { optionsCount: 3 }
+          context: { 
+            optionsCount: 3,
+            settings: {
+              language: settings.language,
+              targetAudience: settings.targetAudience
+            }
+          }
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -297,6 +303,17 @@ export function Phase1StrategicFoundation() {
                                   </p>
                                 </div>
                               ))}
+
+                              {option.reasoning && (
+                                <div className="mt-3 pt-3 border-t border-gray-200">
+                                  <p className="text-xs font-medium text-gray-500 mb-1">
+                                    Why this confidence level for the target audience:
+                                  </p>
+                                  <p className="text-sm text-gray-600">
+                                    {option.reasoning}
+                                  </p>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

@@ -168,7 +168,11 @@ export function Phase3LectureGeneration() {
           text: uploadedText,
           context: {
             phase1Selection: phase1.selected,
-            phase2Selection: phase2.selected
+            phase2Selection: phase2.selected,
+            settings: {
+              language: settings.language,
+              targetAudience: settings.targetAudience
+            }
           },
           styleMarkdown: styleMarkdown || undefined,
         }),
@@ -315,6 +319,7 @@ export function Phase3LectureGeneration() {
         
         return {
           id: div.id || `div-${idx + 1}`,
+          word_count: div.word_count,
           title: div.title || div.division_title || '',
           scriptureRange: div.scriptureRange || div.scripture_reference || div.scripture || '',
           exposition: div.exposition?.content || div.exposition?.text || div.exposition || '',
@@ -340,30 +345,47 @@ export function Phase3LectureGeneration() {
         };
       });
       
-      // Extract conclusion parts from content
+      // Extract conclusion parts - prefer structured fields from AI, fall back to content blob
+      const hasStructuredConclusion = !!(lecture.conclusion?.storyResolution || lecture.conclusion?.callToAction);
       const conclusionContent = lecture.conclusion?.content || '';
-      let storyResolution = conclusionContent;
+      
+      let storyResolution = '';
+      let callToAction = '';
       let closingPrayer = '';
+      let finalThought = '';
       
-      // Try to find prayer section at the end by looking for common patterns
-      const prayerKeywords = ['Let us pray:', 'Prayer:', 'Amen.'];
-      for (const keyword of prayerKeywords) {
-        const idx = conclusionContent.lastIndexOf(keyword);
-        if (idx > conclusionContent.length - 500 && idx > 100) {
-          storyResolution = conclusionContent.substring(0, idx + keyword.length).trim();
-          closingPrayer = conclusionContent.substring(idx).trim();
-          break;
+      if (hasStructuredConclusion) {
+        // AI returned structured fields directly (expected format)
+        storyResolution = lecture.conclusion?.storyResolution || '';
+        callToAction = lecture.conclusion?.callToAction || '';
+        closingPrayer = lecture.conclusion?.closingPrayer || '';
+        finalThought = lecture.conclusion?.finalThought || '';
+      } else if (conclusionContent) {
+        // Fallback: AI returned a single content blob, try to split it
+        storyResolution = conclusionContent;
+        
+        // Try to find prayer section at the end by looking for common patterns
+        const prayerKeywords = ['Let us pray:', 'Prayer:', 'Amen.'];
+        for (const keyword of prayerKeywords) {
+          const idx = conclusionContent.lastIndexOf(keyword);
+          if (idx > conclusionContent.length - 500 && idx > 100) {
+            storyResolution = conclusionContent.substring(0, idx + keyword.length).trim();
+            closingPrayer = conclusionContent.substring(idx).trim();
+            break;
+          }
         }
-      }
-      
-      // If no prayer found, split roughly at 70% mark
-      if (!closingPrayer && conclusionContent.length > 500) {
-        const splitPoint = Math.floor(conclusionContent.length * 0.7);
-        const splitIdx = conclusionContent.indexOf('. ', splitPoint);
-        if (splitIdx > splitPoint - 200) {
-          storyResolution = conclusionContent.substring(0, splitIdx + 1);
-          closingPrayer = conclusionContent.substring(splitIdx + 1).trim();
+        
+        // If no prayer found, split roughly at 70% mark
+        if (!closingPrayer && conclusionContent.length > 500) {
+          const splitPoint = Math.floor(conclusionContent.length * 0.7);
+          const splitIdx = conclusionContent.indexOf('. ', splitPoint);
+          if (splitIdx > splitPoint - 200) {
+            storyResolution = conclusionContent.substring(0, splitIdx + 1);
+            closingPrayer = conclusionContent.substring(splitIdx + 1).trim();
+          }
         }
+        
+        callToAction = storyResolution;
       }
       
       const normalizedLecture = {
@@ -371,16 +393,18 @@ export function Phase3LectureGeneration() {
         title: lecture.title || lecture.metadata?.title || lecture.metadata?.aim || lecture.metadata?.lecture_aim || 'Untitled Lecture',
         scriptureReference: lecture.scriptureReference || lecture.metadata?.scripture_references || lecture.metadata?.scripture_passage || '',
         introduction: {
+          word_count: lecture.introduction?.word_count,
           storyOpening: lecture.introduction?.storyOpening || lecture.introduction?.content || '',
           cliffhanger: lecture.introduction?.cliffhanger || '',
           transitionToText: lecture.introduction?.transitionToText || '',
         },
         body: normalizedBody,
         conclusion: {
+          word_count: lecture.conclusion?.word_count,
           storyResolution: storyResolution,
-          callToAction: lecture.conclusion?.callToAction || storyResolution,
-          closingPrayer: closingPrayer || lecture.conclusion?.closingPrayer || '',
-          finalThought: '',
+          callToAction: callToAction,
+          closingPrayer: closingPrayer,
+          finalThought: finalThought,
         },
         metadata: lecture.metadata || {},
       };
@@ -1066,10 +1090,61 @@ export function Phase3LectureGeneration() {
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-2xl">{phase3.lecture.title || 'Untitled'}</CardTitle>
-                        <Badge variant="outline">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {phase3.lecture.metadata?.totalDuration || 0} min
-                        </Badge>
+                        <div className="flex items-center gap-3">
+                          {(() => {
+                            const lecture = phase3.lecture as any;
+                            let wordCount = 0;
+                            
+                            // Helper to count words in a string
+                            const countWords = (text: string) => text ? text.trim().split(/\s+/).filter(Boolean).length : 0;
+                            
+                            // Try word_count fields first, fall back to counting actual text
+                            // Introduction
+                            if (lecture?.introduction?.word_count) {
+                              wordCount += Number(lecture.introduction.word_count);
+                            } else if (lecture?.introduction) {
+                              wordCount += countWords(lecture.introduction.storyOpening || '');
+                              wordCount += countWords(lecture.introduction.cliffhanger || '');
+                              wordCount += countWords(lecture.introduction.transitionToText || '');
+                            }
+                            
+                            // Body divisions
+                            if (lecture?.body && Array.isArray(lecture.body)) {
+                              lecture.body.forEach((div: any) => {
+                                if (div.word_count) {
+                                  wordCount += Number(div.word_count);
+                                } else {
+                                  wordCount += countWords(div.exposition || '');
+                                  wordCount += countWords(div.principle || '');
+                                  wordCount += countWords(div.transitions || '');
+                                }
+                              });
+                            }
+                            
+                            // Conclusion
+                            if (lecture?.conclusion?.word_count) {
+                              wordCount += Number(lecture.conclusion.word_count);
+                            } else if (lecture?.conclusion) {
+                              wordCount += countWords(lecture.conclusion.storyResolution || '');
+                              wordCount += countWords(lecture.conclusion.callToAction || '');
+                              wordCount += countWords(lecture.conclusion.closingPrayer || '');
+                              wordCount += countWords(lecture.conclusion.finalThought || '');
+                            }
+                            
+                            const duration = Math.round(wordCount / 130);
+                            return (
+                              <>
+                                <Badge variant="outline">
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  {duration > 0 ? `~${duration} min` : '0 min'}
+                                </Badge>
+                                <Badge variant="outline">
+                                  {wordCount.toLocaleString()} words
+                                </Badge>
+                              </>
+                            );
+                          })()}
+                        </div>
                       </div>
                       <CardDescription>{phase3.lecture.scriptureReference || 'No reference'}</CardDescription>
                     </CardHeader>

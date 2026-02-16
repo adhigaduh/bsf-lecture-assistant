@@ -40,6 +40,7 @@ export interface WorkflowSettings {
   aiModel: string;
   quickMode: boolean;
   autoSave: boolean;
+  targetAudience: string;
 }
 
 export interface Phase1State {
@@ -115,6 +116,7 @@ export interface Lecture {
 }
 
 export interface IntroductionSection {
+  word_count?: number;
   storyOpening: string;
   cliffhanger: string;
   transitionToText: string;
@@ -122,6 +124,7 @@ export interface IntroductionSection {
 
 export interface LectureDivision {
   id: string;
+  word_count?: number;
   title: string;
   scriptureRange: string;
   exposition: string;
@@ -143,6 +146,7 @@ export interface ApplicationQuestion {
 }
 
 export interface ConclusionSection {
+  word_count?: number;
   storyResolution: string;
   callToAction: string;
   closingPrayer: string;

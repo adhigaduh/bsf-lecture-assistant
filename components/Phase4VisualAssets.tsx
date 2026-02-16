@@ -50,7 +50,8 @@ export function Phase4VisualAssets() {
     phase3,
     phase4, 
     setVisualAssets, 
-    setPhase4Generating
+    setPhase4Generating,
+    settings
   } = useWorkflowStore();
   
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -150,6 +151,71 @@ export function Phase4VisualAssets() {
     }
   };
 
+  const generateImageWithGemini = async (asset: VisualAsset) => {
+    setGeneratingImage(asset.id);
+    try {
+      // First get the background image without text
+      const bgResponse = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          prompt: asset.visualPrompt,
+          textOnSlide: null, // Get clean background
+          slideType: asset.slideSection,
+        }),
+      });
+
+      if (!bgResponse.ok) {
+        throw new Error('Failed to generate background');
+      }
+
+      const bgResult = await bgResponse.json();
+      
+      if (!bgResult.imageData) {
+        alert('Background generation failed');
+        return;
+      }
+
+      // Now send background + text to Gemini for compositing
+      console.log('Sending to Gemini for text compositing...');
+      const compositeResponse = await fetch('/api/generate-image/gemini-composite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageData: bgResult.imageData,
+          textOnSlide: asset.textOnSlide,
+          slideType: asset.slideSection,
+          themeName: selectedTheme?.name,
+        }),
+      });
+
+      if (!compositeResponse.ok) {
+        const errorData = await compositeResponse.json();
+        throw new Error(errorData.error || 'Gemini composite failed');
+      }
+
+      const compositeResult = await compositeResponse.json();
+
+      if (compositeResult.imageData) {
+        setGeneratedImages(prev => ({
+          ...prev,
+          [asset.id]: compositeResult.imageData
+        }));
+      } else {
+        alert('Gemini could not add text to image. Using background only.');
+        setGeneratedImages(prev => ({
+          ...prev,
+          [asset.id]: bgResult.imageData
+        }));
+      }
+    } catch (error) {
+      console.error('Gemini composite error:', error);
+      alert('Gemini text compositing failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setGeneratingImage(null);
+    }
+  };
+
   const toggleSelectAsset = (assetId: string) => {
     setSelectedAssets(prev => {
       const newSet = new Set(prev);
@@ -197,6 +263,10 @@ export function Phase4VisualAssets() {
           context: {
             phase1Selection: phase1.selected,
             phase3Lecture: phase3.lecture,
+            settings: {
+              language: settings.language,
+              targetAudience: settings.targetAudience
+            },
             preferences: {
               visualStyle: visualStylePref,
               colorPalette: colorPalettePref,
@@ -318,7 +388,11 @@ Create a beautiful 16:9 title slide background. Leave space for text overlay.`;
           context: {
             phase1Selection: phase1.selected,
             phase3Lecture: phase3.lecture,
-            selectedTheme: selectedTheme
+            selectedTheme: selectedTheme,
+            settings: {
+              language: settings.language,
+              targetAudience: settings.targetAudience
+            }
           }
         }),
         signal: abortControllerRef.current.signal,
@@ -715,15 +789,24 @@ Create a beautiful 16:9 title slide background. Leave space for text overlay.`;
                   <h3 className="text-lg font-medium">
                     {phase4.visualAssets.length} Visual Assets Generated
                   </h3>
-                  <label className="flex items-center gap-2 text-sm text-gray-600 mt-1 cursor-pointer hover:text-gray-800">
+                  <label className="flex items-center gap-2 text-sm text-gray-600 mt-1 cursor-pointer hover:text-gray-800"
+                    title={generateWithoutText ? "Generate clean backgrounds without any text overlay" : "Generate slides with text automatically composited on top"}
+                  >
                     <input
                       type="checkbox"
                       checked={generateWithoutText}
                       onChange={(e) => setGenerateWithoutText(e.target.checked)}
                       className="rounded border-gray-300"
                     />
-                    Generate images without text (for manual text overlay)
+                    {generateWithoutText 
+                      ? "Generate text-free backgrounds (for manual text overlay)" 
+                      : "Generate slides with text overlay (automatically rendered)"}
                   </label>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {generateWithoutText 
+                      ? "Clean backgrounds without text. Add your own text in PowerPoint/Google Slides."
+                      : "Text is automatically rendered using professional fonts for perfect readability."}
+                  </p>
                 </div>
                 <div className="flex gap-2">
                   <Button 
@@ -861,8 +944,8 @@ Create a beautiful 16:9 title slide background. Leave space for text overlay.`;
                             </div>
                           )}
                           
-                          {/* Generate Image Button */}
-                          <div className="pt-2">
+                          {/* Generate Image Buttons */}
+                          <div className="pt-2 flex gap-2 flex-wrap">
                             <Button
                               variant="outline"
                               size="sm"
@@ -886,7 +969,34 @@ Create a beautiful 16:9 title slide background. Leave space for text overlay.`;
                                 </>
                               )}
                             </Button>
+                            
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => generateImageWithGemini(asset)}
+                              disabled={generatingImage === asset.id}
+                              className="border-purple-300 hover:bg-purple-50"
+                              title="Use Gemini AI to intelligently place text on the image"
+                            >
+                              {generatingImage === asset.id ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Processing...
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="h-4 w-4 mr-2 text-purple-600" />
+                                  Use Gemini AI
+                                </>
+                              )}
+                            </Button>
                           </div>
+                          
+                          {/* Gemini Info Text */}
+                          <p className="text-xs text-gray-500 mt-1">
+                            <strong>Generate Image:</strong> Fast, uses Canvas API for text placement. 
+                            <strong>Use Gemini AI:</strong> Slower, uses AI to intelligently integrate text into the image.
+                          </p>
                           
                           {/* Generated Image Display */}
                           {generatedImages[asset.id] && (

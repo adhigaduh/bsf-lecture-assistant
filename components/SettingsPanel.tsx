@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, ChangeEvent } from 'react';
 import { useWorkflowStore } from '@/lib/workflow-store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -149,6 +150,20 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 
             <TabsContent value="general" className="space-y-4 mt-4">
               <div className="space-y-4">
+                <div>
+                  <Label>Target Audience</Label>
+                  <p className="text-sm text-gray-500 mb-2">The audience this lecture is designed for</p>
+                  <Input 
+                    value={settings.targetAudience}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => updateSettings({ targetAudience: e.target.value })}
+                    placeholder="e.g., Indonesian Adult Men"
+                    className="w-full"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    This will be used by AI to tailor the lecture content
+                  </p>
+                </div>
+
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Interface Language</Label>
