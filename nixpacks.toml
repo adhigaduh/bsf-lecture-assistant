@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["nodejs_22", "expat", "cairo", "pango", "libpng", "libjpeg", "giflib", "librsvg", "pkg-config", "python3"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npx next start -p 80"
